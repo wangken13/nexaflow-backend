@@ -68,7 +68,7 @@ services:
       NACOS_ADDR: nacos:8848
       SENTINEL_DASHBOARD: sentinel:8858
     ports:
-      - "8080:8080"
+      - "8090:8090"
     depends_on: [nacos, sentinel]
 
   auth-service:
