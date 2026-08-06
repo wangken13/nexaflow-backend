@@ -6,7 +6,7 @@ spring:
   cloud:
     nacos:
       discovery:
-        server-addr: ${NACOS_ADDR:localhost:8848}
+        server-addr: ${NACOS_ADDR:192.168.101.1:8848}
   ai:
     openai:
       api-key: ${OPENAI_API_KEY:}

@@ -65,7 +65,7 @@ services:
     build: ../backend/gateway-service
     environment: &app-env
       JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-      NACOS_ADDR: nacos:8848
+      NACOS_ADDR: 192.168.101.1:8848
       SENTINEL_DASHBOARD: sentinel:8858
     ports:
       - "8080:8080"
