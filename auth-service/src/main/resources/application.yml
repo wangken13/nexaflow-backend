@@ -1,0 +1,18 @@
+server:
+  port: 8101
+
+spring:
+  application:
+    name: auth-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:localhost:8848}
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/trade_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:trade}
+    password: ${MYSQL_PASSWORD:trade123}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-me-in-production}
