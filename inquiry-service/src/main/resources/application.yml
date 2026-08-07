@@ -9,8 +9,8 @@ spring:
         server-addr: ${NACOS_ADDR:192.168.2.128:8848}
   datasource:
     url: jdbc:mysql://${MYSQL_HOST:localhost}:3306/trade_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
-    username: ${MYSQL_USER:trade}
-    password: ${MYSQL_PASSWORD:trade123}
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
   rabbitmq:
     host: ${RABBITMQ_HOST:localhost}
     port: 5672
