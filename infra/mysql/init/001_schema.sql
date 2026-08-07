@@ -91,3 +91,7 @@ CREATE TABLE IF NOT EXISTS notifications (
 INSERT INTO tenants (id, name, plan_code)
 VALUES ('demo-tenant', 'Demo 外贸团队', 'PRO')
 ON DUPLICATE KEY UPDATE name = VALUES(name);
+
+INSERT INTO users (id, tenant_id, username, password_hash, role_code)
+VALUES ('demo-admin', 'demo-tenant', 'admin', 'admin123', 'OWNER')
+ON DUPLICATE KEY UPDATE password_hash = VALUES(password_hash), role_code = VALUES(role_code);
