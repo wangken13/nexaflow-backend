@@ -48,6 +48,13 @@
     environment:
       MODE: standalone
       NACOS_AUTH_ENABLE: "false"
+      SPRING_DATASOURCE_PLATFORM: mysql
+      MYSQL_SERVICE_HOST: ${MYSQL_HOST:-192.168.2.128}
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_DB_NAME: nacos_config
+      MYSQL_SERVICE_USER: root
+      MYSQL_SERVICE_PASSWORD: root
+      MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false
     ports:
       - "8848:8848"
       - "9848:9848"
