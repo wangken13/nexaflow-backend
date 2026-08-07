@@ -7,6 +7,7 @@ spring:
     nacos:
       discovery:
         server-addr: ${NACOS_ADDR:192.168.2.128:8848}
+        ip: ${SERVICE_IP:192.168.2.173}
   rabbitmq:
     host: ${RABBITMQ_HOST:192.168.2.128}
     username: ${RABBITMQ_USER:trade}
