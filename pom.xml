@@ -19,16 +19,26 @@
     <modules>
         <module>common</module>
         <module>gateway-service</module>
-        <module>auth-service</module>
-        <module>tenant-service</module>
-        <module>customer-service</module>
-        <module>inquiry-service</module>
-        <module>ai-service</module>
-        <module>quotation-service</module>
-        <module>order-service</module>
-        <module>task-service</module>
-        <module>notification-service</module>
-        <module>file-service</module>
+        <module>auth-service/api</module>
+        <module>auth-service/biz</module>
+        <module>tenant-service/api</module>
+        <module>tenant-service/biz</module>
+        <module>customer-service/api</module>
+        <module>customer-service/biz</module>
+        <module>inquiry-service/api</module>
+        <module>inquiry-service/biz</module>
+        <module>ai-service/api</module>
+        <module>ai-service/biz</module>
+        <module>quotation-service/api</module>
+        <module>quotation-service/biz</module>
+        <module>order-service/api</module>
+        <module>order-service/biz</module>
+        <module>task-service/api</module>
+        <module>task-service/biz</module>
+        <module>notification-service/api</module>
+        <module>notification-service/biz</module>
+        <module>file-service/api</module>
+        <module>file-service/biz</module>
     </modules>
 
     <properties>
@@ -83,3 +93,4 @@
         </pluginManagement>
     </build>
 </project>
+

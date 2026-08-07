@@ -5,9 +5,9 @@
     <modelVersion>4.0.0</modelVersion>
     <parent>
         <groupId>com.vebcoding</groupId>
-        <artifactId>file-service</artifactId>
+        <artifactId>trade-ai-assistant</artifactId>
         <version>0.1.0-SNAPSHOT</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
     <artifactId>file-biz</artifactId>
     <dependencies>
@@ -20,3 +20,4 @@
         <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-test</artifactId><scope>test</scope></dependency>
     </dependencies>
 </project>
+
