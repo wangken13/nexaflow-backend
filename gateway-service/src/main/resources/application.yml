@@ -10,7 +10,7 @@ spring:
         server-addr: ${NACOS_ADDR:192.168.2.128:8848}
     sentinel:
       transport:
-        dashboard: ${SENTINEL_DASHBOARD:localhost:8858}
+        dashboard: ${SENTINEL_DASHBOARD:192.168.2.128:8858}
     gateway:
       routes:
         - id: auth-service

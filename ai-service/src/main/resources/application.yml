@@ -14,7 +14,7 @@ spring:
         options:
           model: ${OPENAI_MODEL:gpt-4o-mini}
   rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
+    host: ${RABBITMQ_HOST:192.168.2.128}
     port: 5672
     username: ${RABBITMQ_USER:trade}
     password: ${RABBITMQ_PASSWORD:trade123}

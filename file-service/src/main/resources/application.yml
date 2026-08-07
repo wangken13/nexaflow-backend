@@ -12,7 +12,7 @@ spring:
       max-file-size: 20MB
       max-request-size: 25MB
 minio:
-  endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+  endpoint: ${MINIO_ENDPOINT:http://192.168.2.128:9000}
   access-key: ${MINIO_ACCESS_KEY:trade}
   secret-key: ${MINIO_SECRET_KEY:trade123}
   bucket: trade-ai
