@@ -1,0 +1,16 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="All Backend Services" type="CompoundRunConfigurationType">
+    <toRun name="GatewayApplication" type="SpringBootApplicationConfigurationType" />
+    <toRun name="AuthApplication" type="SpringBootApplicationConfigurationType" />
+    <toRun name="TenantApplication" type="SpringBootApplicationConfigurationType" />
+    <toRun name="CustomerApplication" type="SpringBootApplicationConfigurationType" />
+    <toRun name="InquiryApplication" type="SpringBootApplicationConfigurationType" />
+    <toRun name="AiApplication" type="SpringBootApplicationConfigurationType" />
+    <toRun name="QuotationApplication" type="SpringBootApplicationConfigurationType" />
+    <toRun name="OrderApplication" type="SpringBootApplicationConfigurationType" />
+    <toRun name="TaskApplication" type="SpringBootApplicationConfigurationType" />
+    <toRun name="NotificationApplication" type="SpringBootApplicationConfigurationType" />
+    <toRun name="FileApplication" type="SpringBootApplicationConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>
