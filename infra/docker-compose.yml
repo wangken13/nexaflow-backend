@@ -1,4 +1,4 @@
-﻿services:
+services:
   mysql:
     image: mysql:8.4
     container_name: trade-ai-mysql
@@ -78,7 +78,7 @@
 
   auth-service:
     profiles: ["app"]
-    build: ../backend/auth-biz
+    build: ../backend/auth-service/biz
     environment:
       <<: *app-env
       MYSQL_HOST: 192.168.2.128
@@ -90,7 +90,7 @@
 
   tenant-service:
     profiles: ["app"]
-    build: ../backend/tenant-biz
+    build: ../backend/tenant-service/biz
     environment:
       <<: *app-env
       MYSQL_HOST: 192.168.2.128
@@ -102,7 +102,7 @@
 
   customer-service:
     profiles: ["app"]
-    build: ../backend/customer-biz
+    build: ../backend/customer-service/biz
     environment: &business-env
       <<: *app-env
       MYSQL_HOST: 192.168.2.128
@@ -117,7 +117,7 @@
 
   inquiry-service:
     profiles: ["app"]
-    build: ../backend/inquiry-biz
+    build: ../backend/inquiry-service/biz
     environment: *business-env
     ports:
       - "8104:8104"
@@ -125,7 +125,7 @@
 
   ai-service:
     profiles: ["app"]
-    build: ../backend/ai-biz
+    build: ../backend/ai-service/biz
     environment:
       <<: *business-env
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -136,7 +136,7 @@
 
   quotation-service:
     profiles: ["app"]
-    build: ../backend/quotation-biz
+    build: ../backend/quotation-service/biz
     environment: *business-env
     ports:
       - "8106:8106"
@@ -144,7 +144,7 @@
 
   order-service:
     profiles: ["app"]
-    build: ../backend/order-biz
+    build: ../backend/order-service/biz
     environment: *business-env
     ports:
       - "8107:8107"
@@ -152,7 +152,7 @@
 
   task-service:
     profiles: ["app"]
-    build: ../backend/task-biz
+    build: ../backend/task-service/biz
     environment: *business-env
     ports:
       - "8108:8108"
@@ -160,7 +160,7 @@
 
   notification-service:
     profiles: ["app"]
-    build: ../backend/notification-biz
+    build: ../backend/notification-service/biz
     environment: *business-env
     ports:
       - "8109:8109"
@@ -168,7 +168,7 @@
 
   file-service:
     profiles: ["app"]
-    build: ../backend/file-biz
+    build: ../backend/file-service/biz
     environment:
       <<: *app-env
       MINIO_ENDPOINT: http://192.168.2.128:9000
