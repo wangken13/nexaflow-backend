@@ -78,7 +78,7 @@
 
   auth-service:
     profiles: ["app"]
-    build: ../backend/auth-service
+    build: ../backend/auth-biz
     environment:
       <<: *app-env
       MYSQL_HOST: 192.168.2.128
@@ -90,7 +90,7 @@
 
   tenant-service:
     profiles: ["app"]
-    build: ../backend/tenant-service
+    build: ../backend/tenant-biz
     environment:
       <<: *app-env
       MYSQL_HOST: 192.168.2.128
@@ -102,7 +102,7 @@
 
   customer-service:
     profiles: ["app"]
-    build: ../backend/customer-service
+    build: ../backend/customer-biz
     environment: &business-env
       <<: *app-env
       MYSQL_HOST: 192.168.2.128
@@ -117,7 +117,7 @@
 
   inquiry-service:
     profiles: ["app"]
-    build: ../backend/inquiry-service
+    build: ../backend/inquiry-biz
     environment: *business-env
     ports:
       - "8104:8104"
@@ -125,7 +125,7 @@
 
   ai-service:
     profiles: ["app"]
-    build: ../backend/ai-service
+    build: ../backend/ai-biz
     environment:
       <<: *business-env
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -136,7 +136,7 @@
 
   quotation-service:
     profiles: ["app"]
-    build: ../backend/quotation-service
+    build: ../backend/quotation-biz
     environment: *business-env
     ports:
       - "8106:8106"
@@ -144,7 +144,7 @@
 
   order-service:
     profiles: ["app"]
-    build: ../backend/order-service
+    build: ../backend/order-biz
     environment: *business-env
     ports:
       - "8107:8107"
@@ -152,7 +152,7 @@
 
   task-service:
     profiles: ["app"]
-    build: ../backend/task-service
+    build: ../backend/task-biz
     environment: *business-env
     ports:
       - "8108:8108"
@@ -160,7 +160,7 @@
 
   notification-service:
     profiles: ["app"]
-    build: ../backend/notification-service
+    build: ../backend/notification-biz
     environment: *business-env
     ports:
       - "8109:8109"
@@ -168,7 +168,7 @@
 
   file-service:
     profiles: ["app"]
-    build: ../backend/file-service
+    build: ../backend/file-biz
     environment:
       <<: *app-env
       MINIO_ENDPOINT: http://192.168.2.128:9000

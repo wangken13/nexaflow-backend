@@ -1,0 +1,13 @@
+﻿server:
+  port: 8102
+spring:
+  application:
+    name: tenant-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:192.168.2.128:8848}
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:192.168.2.128}:3306/trade_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}

@@ -1,0 +1,17 @@
+﻿server:
+  port: 8108
+spring:
+  application:
+    name: task-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:192.168.2.128:8848}
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:192.168.2.128}:3306/trade_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:192.168.2.128}
+    username: ${RABBITMQ_USER:trade}
+    password: ${RABBITMQ_PASSWORD:trade123}

@@ -1,0 +1,13 @@
+﻿server:
+  port: 8109
+spring:
+  application:
+    name: notification-service
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:192.168.2.128:8848}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:192.168.2.128}
+    username: ${RABBITMQ_USER:trade}
+    password: ${RABBITMQ_PASSWORD:trade123}

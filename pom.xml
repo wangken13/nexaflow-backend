@@ -20,16 +20,26 @@
     <modules>
         <module>common</module>
         <module>gateway-service</module>
-        <module>auth-service</module>
-        <module>tenant-service</module>
-        <module>customer-service</module>
-        <module>inquiry-service</module>
-        <module>ai-service</module>
-        <module>quotation-service</module>
-        <module>order-service</module>
-        <module>task-service</module>
-        <module>notification-service</module>
-        <module>file-service</module>
+        <module>auth-api</module>
+        <module>auth-biz</module>
+        <module>tenant-api</module>
+        <module>tenant-biz</module>
+        <module>customer-api</module>
+        <module>customer-biz</module>
+        <module>inquiry-api</module>
+        <module>inquiry-biz</module>
+        <module>ai-api</module>
+        <module>ai-biz</module>
+        <module>quotation-api</module>
+        <module>quotation-biz</module>
+        <module>order-api</module>
+        <module>order-biz</module>
+        <module>task-api</module>
+        <module>task-biz</module>
+        <module>notification-api</module>
+        <module>notification-biz</module>
+        <module>file-api</module>
+        <module>file-biz</module>
     </modules>
 
     <properties>
