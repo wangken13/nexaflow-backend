@@ -10,8 +10,13 @@ class AiControllerTest {
     @Test
     void analyzeFallsBackWithoutModelKey() {
         var provider = new DefaultListableBeanFactory().getBeanProvider(ChatClient.Builder.class);
-        AiController controller = new AiController(provider);
+        var fallback = new LocalFallbackAiProvider();
+        var springProvider = new SpringAiProvider(provider, fallback);
+        var service = new InquiryAnalysisService(springProvider, new InquiryClassifier(), new InquiryDraftFactory());
+        AiController controller = new AiController(service);
+
         var response = controller.analyzeInquiry(new AiController.AnalyzeInquiryRequest("urgent quote for 500 pcs"));
+
         assertThat(response.data().urgency()).isEqualTo("HIGH");
         assertThat(response.data().replyDraft()).contains("感谢");
     }
