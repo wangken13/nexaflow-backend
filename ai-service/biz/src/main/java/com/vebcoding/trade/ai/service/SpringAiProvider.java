@@ -26,7 +26,7 @@ public class SpringAiProvider implements AiProviderStrategy {
         try {
             return builder.build().prompt(prompt).call().content();
         } catch (Exception ex) {
-            return "AI 璋冪敤澶辫触锛屽凡闄嶇骇涓烘湰鍦拌鍒欏垎鏋愶細" + ex.getMessage();
+            return "AI 调用失败，已降级为本地规则分析：" + ex.getMessage();
         }
     }
 }

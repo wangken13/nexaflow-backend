@@ -3,16 +3,24 @@
 spring:
   application:
     name: ai-service
+  autoconfigure:
+    exclude:
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioSpeechAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiAudioTranscriptionAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiEmbeddingAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiImageAutoConfiguration
+      - org.springframework.ai.model.openai.autoconfigure.OpenAiModerationAutoConfiguration
   cloud:
     nacos:
       discovery:
         server-addr: ${NACOS_ADDR:192.168.2.128:8848}
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY:}
+      api-key: ${DEEPSEEK_API_KEY:${DEEPSEEK_APIKEY:${OPENAI_API_KEY:}}}
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
       chat:
         options:
-          model: ${OPENAI_MODEL:gpt-4o-mini}
+          model: ${DEEPSEEK_MODEL:deepseek-chat}
   rabbitmq:
     host: ${RABBITMQ_HOST:192.168.2.128}
     port: 5672
