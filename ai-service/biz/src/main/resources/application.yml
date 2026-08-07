@@ -1,5 +1,5 @@
 ﻿server:
-  port: 8105
+  port: 18105
 spring:
   application:
     name: ai-service

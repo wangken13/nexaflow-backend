@@ -1,5 +1,5 @@
 ﻿server:
-  port: 8108
+  port: 18108
 spring:
   application:
     name: task-service

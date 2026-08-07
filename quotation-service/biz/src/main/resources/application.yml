@@ -1,5 +1,5 @@
 ﻿server:
-  port: 8106
+  port: 18106
 spring:
   application:
     name: quotation-service

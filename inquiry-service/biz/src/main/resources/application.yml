@@ -1,5 +1,5 @@
 ﻿server:
-  port: 8104
+  port: 18104
 spring:
   application:
     name: inquiry-service

@@ -1,5 +1,5 @@
 ﻿server:
-  port: 8110
+  port: 18110
 spring:
   application:
     name: file-service

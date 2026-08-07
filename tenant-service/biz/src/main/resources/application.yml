@@ -1,5 +1,5 @@
 ﻿server:
-  port: 8102
+  port: 18102
 spring:
   application:
     name: tenant-service

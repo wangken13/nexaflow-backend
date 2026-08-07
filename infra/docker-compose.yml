@@ -147,7 +147,7 @@ services:
     build: ../backend/order-service/biz
     environment: *business-env
     ports:
-      - "8107:8107"
+      - "18107:18107"
     depends_on: [mysql, rabbitmq, nacos]
 
   task-service:
@@ -181,3 +181,4 @@ services:
 volumes:
   mysql-data:
   minio-data:
+

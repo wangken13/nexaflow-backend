@@ -1,5 +1,5 @@
 ﻿server:
-  port: 8109
+  port: 18109
 spring:
   application:
     name: notification-service
