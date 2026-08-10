@@ -1,6 +1,6 @@
-# TradeFlow AI Backend
+# NexaFlow Backend
 
-Java 微服务后端，支撑外贸 AI 跟单助手的认证、租户、客户、询盘、AI 分析、报价、订单、任务、通知和文件能力。
+Java 微服务后端，支撑企业客户协同平台的认证、租户、客户、需求、AI 分析、报价、订单、任务、通知和文件能力。
 
 ## Stack
 

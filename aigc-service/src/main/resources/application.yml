@@ -1,0 +1,46 @@
+server:
+  port: 18111
+
+spring:
+  flyway:
+    baseline-on-migrate: true
+    baseline-version: 11
+  application:
+    name: aigc-service
+  config:
+    import: optional:nacos:${spring.application.name}.${spring.cloud.nacos.config.file-extension}
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_ADDR:192.168.2.128:8848}
+      config:
+        server-addr: ${NACOS_ADDR:192.168.2.128:8848}
+        file-extension: yaml
+    openfeign:
+      okhttp:
+        enabled: true
+  datasource:
+    url: jdbc:mysql://${MYSQL_HOST:192.168.2.128}:3306/trade_ai?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai
+    username: ${MYSQL_USER:root}
+    password: ${MYSQL_PASSWORD:root}
+  data:
+    redis:
+      host: ${REDIS_HOST:192.168.2.128}
+      port: 6379
+      password: ${REDIS_PASSWORD:trade123}
+  ai:
+    openai:
+      api-key: ${DEEPSEEK_API_KEY:${DEEPSEEK_APIKEY:${OPENAI_API_KEY:}}}
+      base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
+      chat:
+        options:
+          model: ${DEEPSEEK_MODEL:deepseek-chat}
+  rabbitmq:
+    host: ${RABBITMQ_HOST:192.168.2.128}
+    port: 5672
+    username: ${RABBITMQ_USER:trade}
+    password: ${RABBITMQ_PASSWORD:trade123}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}

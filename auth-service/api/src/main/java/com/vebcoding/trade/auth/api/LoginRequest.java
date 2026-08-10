@@ -2,5 +2,6 @@ package com.vebcoding.trade.auth.api;
 
 import jakarta.validation.constraints.NotBlank;
 
-public record LoginRequest(@NotBlank String username, @NotBlank String password) {
+public record LoginRequest(@NotBlank String username, @NotBlank String password,
+                           @NotBlank String captchaId, @NotBlank String captchaCode) {
 }

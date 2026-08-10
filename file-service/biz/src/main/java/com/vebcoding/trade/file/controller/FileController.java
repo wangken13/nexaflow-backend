@@ -3,6 +3,7 @@ package com.vebcoding.trade.file.controller;
 import com.vebcoding.trade.common.ApiResponse;
 import com.vebcoding.trade.file.api.FilePolicyResponse;
 import com.vebcoding.trade.file.api.FileUploadResponse;
+import com.vebcoding.trade.file.api.FileDownloadResponse;
 import com.vebcoding.trade.file.service.FileService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -28,5 +29,10 @@ public class FileController {
     @GetMapping("/policy")
     public ApiResponse<FilePolicyResponse> policy() {
         return ApiResponse.ok(fileService.policy());
+    }
+
+    @GetMapping("/download")
+    public ApiResponse<FileDownloadResponse> download(@RequestParam("objectKey") String objectKey) {
+        return ApiResponse.ok(fileService.download(objectKey));
     }
 }

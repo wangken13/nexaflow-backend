@@ -4,9 +4,7 @@ import com.vebcoding.trade.inquiry.api.InquiryView;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
-import org.springframework.stereotype.Repository;
 
-@Repository
 public class InMemoryInquiryMapper implements InquiryMapper {
     private final List<InquiryView> inquiries = new CopyOnWriteArrayList<>();
 

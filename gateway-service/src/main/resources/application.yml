@@ -8,7 +8,6 @@ spring:
     nacos:
       discovery:
         server-addr: ${NACOS_ADDR:192.168.2.128:8848}
-        ip: ${SERVICE_IP:192.168.2.173}
     sentinel:
       transport:
         dashboard: ${SENTINEL_DASHBOARD:192.168.2.128:8858}
@@ -27,6 +26,10 @@ spring:
             - id: customer-service
               uri: lb://customer-service
               predicates: [ Path=/api/customer/** ]
+              filters: [ StripPrefix=1 ]
+            - id: product-service
+              uri: lb://product-service
+              predicates: [ Path=/api/product/** ]
               filters: [ StripPrefix=1 ]
             - id: inquiry-service
               uri: lb://inquiry-service
@@ -56,7 +59,3 @@ spring:
               uri: lb://file-service
               predicates: [ Path=/api/file/** ]
               filters: [ StripPrefix=1 ]
-
-app:
-  jwt:
-    secret: ${JWT_SECRET:change-me-in-production}

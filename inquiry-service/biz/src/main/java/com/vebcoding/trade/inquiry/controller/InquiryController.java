@@ -27,6 +27,11 @@ public class InquiryController {
         return ApiResponse.ok(inquiryService.list());
     }
 
+    @GetMapping("/{id}")
+    public ApiResponse<InquiryView> get(@PathVariable String id) {
+        return ApiResponse.ok(inquiryService.get(id));
+    }
+
     @PostMapping
     public ApiResponse<InquiryView> create(@RequestBody CreateInquiryRequest request) {
         return ApiResponse.ok(inquiryService.create(request));
@@ -36,6 +41,6 @@ public class InquiryController {
     public ApiResponse<InquiryView> updateStatus(@PathVariable String id, @PathVariable String status) {
         return inquiryService.updateStatus(id, status)
                 .map(ApiResponse::ok)
-                .orElseGet(() -> ApiResponse.fail("询盘不存在"));
+                .orElseThrow(() -> com.vebcoding.trade.common.BusinessException.notFound("询盘不存在"));
     }
 }

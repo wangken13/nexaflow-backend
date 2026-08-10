@@ -1,0 +1,83 @@
+services:
+  mysql:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  rabbitmq:
+    ports: !reset []
+
+  minio:
+    ports: !reset []
+
+  nacos:
+    ports: !reset []
+    environment:
+      MYSQL_SERVICE_HOST: mysql
+
+  sentinel:
+    ports: !reset []
+
+  gateway-service:
+    environment:
+      NACOS_ADDR: nacos:8848
+      SENTINEL_DASHBOARD: sentinel:8858
+      AUTH_COOKIE_SECURE: "true"
+
+  auth-service:
+    environment:
+      NACOS_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      AUTH_COOKIE_SECURE: "true"
+
+  tenant-service:
+    environment:
+      NACOS_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+
+  customer-service:
+    environment:
+      NACOS_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      RABBITMQ_HOST: rabbitmq
+
+  inquiry-service:
+    environment:
+      NACOS_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      RABBITMQ_HOST: rabbitmq
+
+  ai-service:
+    environment:
+      NACOS_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      RABBITMQ_HOST: rabbitmq
+
+  quotation-service:
+    environment:
+      NACOS_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+
+  order-service:
+    environment:
+      NACOS_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      RABBITMQ_HOST: rabbitmq
+
+  task-service:
+    environment:
+      NACOS_ADDR: nacos:8848
+      MYSQL_HOST: mysql
+      RABBITMQ_HOST: rabbitmq
+
+  notification-service:
+    environment:
+      NACOS_ADDR: nacos:8848
+      RABBITMQ_HOST: rabbitmq
+
+  file-service:
+    environment:
+      NACOS_ADDR: nacos:8848
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ENABLED: "true"

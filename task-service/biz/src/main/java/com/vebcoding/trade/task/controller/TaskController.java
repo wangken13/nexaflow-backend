@@ -37,7 +37,7 @@ public class TaskController {
     public ApiResponse<TaskView> complete(@PathVariable String id) {
         return taskService.complete(id)
                 .map(ApiResponse::ok)
-                .orElseGet(() -> ApiResponse.fail("任务不存在"));
+                .orElseThrow(() -> com.vebcoding.trade.common.BusinessException.notFound("任务不存在"));
     }
 
     @GetMapping("/daily-report")

@@ -5,6 +5,9 @@ import com.vebcoding.trade.ai.api.InquiryAnalysis;
 import com.vebcoding.trade.ai.service.AiService;
 import com.vebcoding.trade.common.ApiResponse;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import java.util.List;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -20,6 +23,11 @@ public class AiController {
 
     @PostMapping("/analyze-inquiry")
     public ApiResponse<InquiryAnalysis> analyzeInquiry(@RequestBody AnalyzeInquiryRequest request) {
-        return ApiResponse.ok(aiService.analyzeInquiry(request.content()));
+        return ApiResponse.ok(aiService.analyzeInquiry(request.inquiryId(), request.content()));
+    }
+
+    @GetMapping("/inquiries/{inquiryId}/history")
+    public ApiResponse<List<InquiryAnalysis>> history(@PathVariable String inquiryId) {
+        return ApiResponse.ok(aiService.history(inquiryId));
     }
 }

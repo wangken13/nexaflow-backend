@@ -1,6 +1,9 @@
 package com.vebcoding.trade.task.service;
 
+import com.vebcoding.trade.common.BusinessException;
 import com.vebcoding.trade.common.TenantContext;
+import com.vebcoding.trade.common.TextSanitizer;
+import com.vebcoding.trade.common.RoleGuard;
 import com.vebcoding.trade.task.api.CreateTaskRequest;
 import com.vebcoding.trade.task.api.DailyReport;
 import com.vebcoding.trade.task.api.TaskView;
@@ -12,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class TaskService {
+    private static final List<String> ALLOWED_PRIORITIES = List.of("HIGH", "NORMAL", "LOW");
     private final TaskMapper taskMapper;
 
     public TaskService(TaskMapper taskMapper) {
@@ -23,18 +27,36 @@ public class TaskService {
     }
 
     public TaskView create(CreateTaskRequest request) {
-        TaskView task = new TaskView("tsk-" + UUID.randomUUID(), TenantContext.tenantId(), request.title(),
-                request.priority(), "OPEN", request.dueAt());
+        RoleGuard.requireAny("OWNER", "ADMIN", "SALES", "OPERATOR");
+        String title = TextSanitizer.required(request.title(), "任务标题");
+        String priority = normalizePriority(request.priority());
+        TaskView task = new TaskView("tsk-" + UUID.randomUUID(), TenantContext.tenantId(), title,
+                priority, "OPEN", TextSanitizer.optional(request.dueAt()),
+                TextSanitizer.optional(request.relatedType()).toUpperCase(), TextSanitizer.optional(request.relatedId()));
         return taskMapper.save(task);
     }
 
     public Optional<TaskView> complete(String id) {
+        RoleGuard.requireAny("OWNER", "ADMIN", "SALES", "OPERATOR");
         return taskMapper.findByTenantIdAndId(TenantContext.tenantId(), id)
                 .map(item -> taskMapper.save(new TaskView(item.id(), item.tenantId(), item.title(), item.priority(),
-                        "DONE", item.dueAt())));
+                        "DONE", item.dueAt(), item.relatedType(), item.relatedId())));
     }
 
     public DailyReport dailyReport() {
-        return new DailyReport(7, 3, 1, "今日重点：优先跟进高意向报价客户，检查临期订单。");
+        List<TaskView> tenantTasks = taskMapper.findByTenantId(TenantContext.tenantId());
+        int openTasks = (int) tenantTasks.stream().filter(task -> !"DONE".equals(task.status())).count();
+        return new DailyReport(openTasks, 0, 0, openTasks > 0 ? "今日重点：完成高优先级客户跟进。" : "今日任务已清空，可复盘报价和订单风险。");
+    }
+
+    private String normalizePriority(String priority) {
+        String normalized = TextSanitizer.optional(priority).toUpperCase();
+        if (normalized.isBlank()) {
+            return "NORMAL";
+        }
+        if (!ALLOWED_PRIORITIES.contains(normalized)) {
+            throw new BusinessException("任务优先级不合法");
+        }
+        return normalized;
     }
 }

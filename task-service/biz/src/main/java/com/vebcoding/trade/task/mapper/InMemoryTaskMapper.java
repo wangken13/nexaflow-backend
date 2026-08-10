@@ -5,9 +5,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
-import org.springframework.stereotype.Repository;
 
-@Repository
 public class InMemoryTaskMapper implements TaskMapper {
     private final List<TaskView> tasks = new CopyOnWriteArrayList<>(List.of(
             new TaskView("tsk-001", "demo-tenant", "跟进 North Star 报价确认", "HIGH", "OPEN",

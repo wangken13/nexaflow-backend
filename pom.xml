@@ -22,6 +22,7 @@
         <module>auth-service</module>
         <module>tenant-service</module>
         <module>customer-service</module>
+        <module>product-service</module>
         <module>inquiry-service</module>
         <module>ai-service</module>
         <module>quotation-service</module>
@@ -29,6 +30,8 @@
         <module>task-service</module>
         <module>notification-service</module>
         <module>file-service</module>
+        <module>aigc-service</module>
+
     </modules>
 
     <properties>
@@ -72,7 +75,32 @@
         </dependencies>
     </dependencyManagement>
 
+    <repositories>
+        <repository>
+            <id>aliyun</id>
+            <name>Aliyun Maven Repository</name>
+            <url>https://maven.aliyun.com/repository/public</url>
+            <releases>
+                <enabled>true</enabled>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+    </repositories>
+
     <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <systemPropertyVariables>
+                        <JWT_SECRET>test-only-jwt-secret-with-at-least-32-bytes</JWT_SECRET>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+        </plugins>
         <pluginManagement>
             <plugins>
                 <plugin>
@@ -83,5 +111,3 @@
         </pluginManagement>
     </build>
 </project>
-
-

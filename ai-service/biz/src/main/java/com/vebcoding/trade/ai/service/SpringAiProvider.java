@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.net.URI;
 import java.net.http.HttpClient;
+import java.net.http.HttpTimeoutException;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
@@ -61,8 +62,15 @@ public class SpringAiProvider implements AiProviderStrategy {
             JsonNode root = objectMapper.readTree(response.body());
             JsonNode content = root.path("choices").path(0).path("message").path("content");
             return content.isMissingNode() ? fallbackAiProvider.generate(prompt) : content.asText();
+        } catch (HttpTimeoutException ex) {
+            return "AI 模型响应超时，已降级为本地规则分析。";
+        } catch (java.net.ConnectException ex) {
+            return "无法连接 AI 模型服务，已降级为本地规则分析。";
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            return "AI 分析任务被中断，已降级为本地规则分析。";
         } catch (Exception ex) {
-            return "AI 调用失败，已降级为本地规则分析：" + ex.getMessage();
+            return "AI 模型响应格式异常，已降级为本地规则分析。";
         }
     }
 
