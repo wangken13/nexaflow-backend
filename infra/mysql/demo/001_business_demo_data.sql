@@ -3,6 +3,7 @@
 -- It intentionally does not seed one-time auth artifacts such as captcha, SMS code, session, or OAuth ticket rows.
 
 USE trade_ai;
+SET NAMES utf8mb4;
 
 SET @tenant_id = 'demo-tenant';
 SET @password_hash = '$2a$12$FZr3HGDfWf2UAvNVUj9M5.ek.CwJvzksu7033d8bIX5TfozEEf.fe'; -- admin123, demo only

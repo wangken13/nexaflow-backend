@@ -1,3 +1,5 @@
+SET NAMES utf8mb4;
+
 -- Enterprise security, normalized authorization metadata, and operational audit.
 -- Order/product names and quotation item descriptions remain intentional immutable business snapshots.
 
