@@ -15,6 +15,14 @@ spring:
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:root}
   ai:
+    model:
+      chat: none
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
     openai:
       api-key: ${DEEPSEEK_API_KEY:${DEEPSEEK_APIKEY:${OPENAI_API_KEY:}}}
       base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com}
