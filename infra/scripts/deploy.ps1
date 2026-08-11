@@ -44,7 +44,7 @@ if ($nacosUsername -notmatch '^[A-Za-z0-9_.-]+$' -or $nacosPassword.Length -lt 1
     throw 'Configure a valid NACOS_USERNAME and a Nacos password of at least 12 characters in .env.prod.'
 }
 
-Invoke-Compose up -d mysql redis rabbitmq minio
+Invoke-Compose -ComposeArguments @('up', '-d', 'mysql', 'redis', 'rabbitmq', 'minio')
 Wait-Healthy mysql
 
 $hashLine = (& docker run --rm httpd:2.4-alpine htpasswd -bnBC 10 '' $nacosPassword).Trim()
@@ -56,7 +56,7 @@ INSERT INTO roles (username, role) VALUES ('$nacosUsername', 'ROLE_ADMIN') ON DU
 $sql | & docker compose --env-file $EnvFile -f $composeFile exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot nacos_config'
 if ($LASTEXITCODE -ne 0) { throw 'Failed to initialize the Nacos administrator.' }
 
-Invoke-Compose up -d nacos
+Invoke-Compose -ComposeArguments @('up', '-d', 'nacos')
 Wait-Healthy nacos
 
 if (-not $SkipPackage) {
@@ -64,6 +64,6 @@ if (-not $SkipPackage) {
     if ($LASTEXITCODE -ne 0) { throw 'Backend Maven package failed.' }
 }
 
-Invoke-Compose up -d --build --remove-orphans
-Invoke-Compose ps
+Invoke-Compose -ComposeArguments @('up', '-d', '--build', '--remove-orphans')
+Invoke-Compose -ComposeArguments @('ps')
 Write-Output "Deployment completed. Open http://<server-ip>:$(Get-EnvValue 'HTTP_PORT')"
