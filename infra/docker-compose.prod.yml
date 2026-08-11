@@ -175,6 +175,10 @@ services:
       dockerfile: Dockerfile
     environment:
       <<: *mysql-env
+      SMS_PROVIDER: "${SMS_PROVIDER:-spug}"
+      SPUG_SMS_NAME: "${SPUG_SMS_NAME:-NexaFlow}"
+      SPUG_SMS_LOGIN_URL: "${SPUG_SMS_LOGIN_URL:-}"
+      SPUG_SMS_REGISTER_URL: "${SPUG_SMS_REGISTER_URL:-}"
       SMS_ENDPOINT: "${SMS_ENDPOINT:-}"
       SMS_API_TOKEN: "${SMS_API_TOKEN:-}"
       WECHAT_OPEN_APP_ID: "${WECHAT_OPEN_APP_ID:-}"

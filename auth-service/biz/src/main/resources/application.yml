@@ -23,8 +23,9 @@ app:
     provider: ${SMS_PROVIDER:spug}
     spug:
       name: ${SPUG_SMS_NAME:NexaFlow}
-      login-url: ${SPUG_SMS_LOGIN_URL:}
-      register-url: ${SPUG_SMS_REGISTER_URL:}
+      # SMS_ENDPOINT is retained as a compatible fallback for existing deployments.
+      login-url: ${SPUG_SMS_LOGIN_URL:${SMS_ENDPOINT:}}
+      register-url: ${SPUG_SMS_REGISTER_URL:${SMS_ENDPOINT:}}
     endpoint: ${ALIYUN_SMS_ENDPOINT:dysmsapi.aliyuncs.com}
     access-key-id: ${ALIBABA_CLOUD_ACCESS_KEY_ID:}
     access-key-secret: ${ALIBABA_CLOUD_ACCESS_KEY_SECRET:}
