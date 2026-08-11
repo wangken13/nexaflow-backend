@@ -19,6 +19,9 @@ x-common-env: &common-env
   SPRING_FLYWAY_BASELINE_VERSION: "11"
   SPRING_CLOUD_NACOS_USERNAME: "${NACOS_USERNAME:?NACOS_USERNAME must be set}"
   SPRING_CLOUD_NACOS_PASSWORD: "${NACOS_PASSWORD:?NACOS_PASSWORD must be set}"
+  # Do not terminate a service during a short Nacos gRPC warm-up window.
+  # The client keeps reconnecting and registers as soon as Nacos is ready.
+  SPRING_CLOUD_NACOS_DISCOVERY_FAIL_FAST: "false"
   NACOS_ADDR: nacos:8848
   REDIS_HOST: redis
   REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"
@@ -135,11 +138,13 @@ services:
       mysql:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8848/nacos/v1/console/health/readiness >/dev/null 2>&1"]
+      # Nacos HTTP can be ready before its client gRPC listener (8848 + 1000).
+      # Spring Cloud Alibaba needs both endpoints before it can register services.
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8848/nacos/v1/console/health/readiness >/dev/null 2>&1 && bash -c '</dev/tcp/127.0.0.1/9848'"]
       interval: 10s
       timeout: 5s
       retries: 18
-      start_period: 30s
+      start_period: 60s
     deploy:
       resources:
         limits:
