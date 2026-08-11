@@ -374,6 +374,10 @@ services:
       dockerfile: Dockerfile
     ports:
       - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - "${SSL_CERT_PATH:?SSL_CERT_PATH must point to the full-chain certificate}:/etc/nginx/ssl/fullchain.pem:ro"
+      - "${SSL_KEY_PATH:?SSL_KEY_PATH must point to the private key}:/etc/nginx/ssl/private.key:ro"
     depends_on:
       gateway-service:
         condition: service_started
