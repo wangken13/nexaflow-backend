@@ -9,17 +9,18 @@ services:
       MYSQL_PASSWORD: "${MYSQL_APP_PASSWORD:?MYSQL_APP_PASSWORD must be set}"
       TZ: Asia/Shanghai
     ports:
-      - "3306:3306"
+      - "127.0.0.1:3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
       - ./mysql/init:/docker-entrypoint-initdb.d
+      - ./nacos/mysql-schema-2.4.3.sql:/docker-entrypoint-initdb.d/000_nacos_schema.sql:ro
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
 
   redis:
     image: redis:7.4
     container_name: trade-ai-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"]
 
   rabbitmq:
@@ -29,8 +30,8 @@ services:
       RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:?RABBITMQ_USER must be set}"
       RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD must be set}"
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:5672:5672"
+      - "127.0.0.1:15672:15672"
 
   minio:
     image: minio/minio:RELEASE.2025-04-22T22-12-26Z
@@ -40,14 +41,14 @@ services:
       MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}"
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:9001:9001"
     volumes:
       - minio-data:/data
 
   nacos:
     image: nacos/nacos-server:v2.4.3
-    container_name: trade-ai-nacos
+    container_name: nacos
     environment:
       MODE: standalone
       NACOS_AUTH_ENABLE: "true"
@@ -55,21 +56,15 @@ services:
       NACOS_AUTH_IDENTITY_KEY: "${NACOS_AUTH_IDENTITY_KEY:?NACOS_AUTH_IDENTITY_KEY must be set}"
       NACOS_AUTH_IDENTITY_VALUE: "${NACOS_AUTH_IDENTITY_VALUE:?NACOS_AUTH_IDENTITY_VALUE must be set}"
       SPRING_DATASOURCE_PLATFORM: mysql
-      MYSQL_SERVICE_HOST: ${MYSQL_HOST:-192.168.2.128}
+      MYSQL_SERVICE_HOST: mysql
       MYSQL_SERVICE_PORT: 3306
       MYSQL_SERVICE_DB_NAME: nacos_config
       MYSQL_SERVICE_USER: root
       MYSQL_SERVICE_PASSWORD: "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}"
-      MYSQL_SERVICE_DB_PARAM: characterEncoding=utf8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false
+      MYSQL_SERVICE_DB_PARAM: characterEncoding=UTF-8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true
     ports:
-      - "8848:8848"
-      - "9848:9848"
-
-  sentinel:
-    image: bladex/sentinel-dashboard:1.8.8
-    container_name: trade-ai-sentinel
-    ports:
-      - "8858:8858"
+      - "127.0.0.1:8848:8848"
+      - "127.0.0.1:9848:9848"
 
   gateway-service:
     profiles: ["app"]
@@ -81,18 +76,19 @@ services:
       SPRING_FLYWAY_BASELINE_VERSION: "11"
       SPRING_CLOUD_NACOS_USERNAME: "${NACOS_USERNAME:?NACOS_USERNAME must be set}"
       SPRING_CLOUD_NACOS_PASSWORD: "${NACOS_PASSWORD:?NACOS_PASSWORD must be set}"
-      NACOS_ADDR: 192.168.2.128:8848
-      SENTINEL_DASHBOARD: 192.168.2.128:8858
+      NACOS_ADDR: nacos:8848
+      REDIS_HOST: redis
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"
     ports:
       - "18080:18080"
-    depends_on: [nacos, sentinel]
+    depends_on: [nacos]
 
   auth-service:
     profiles: ["app"]
     build: ../auth-service/biz
     environment:
       <<: *app-env
-      MYSQL_HOST: 192.168.2.128
+      MYSQL_HOST: mysql
       MYSQL_USER: "${MYSQL_APP_USER:?MYSQL_APP_USER must be set}"
       MYSQL_PASSWORD: "${MYSQL_APP_PASSWORD:?MYSQL_APP_PASSWORD must be set}"
       SMS_ENDPOINT: ${SMS_ENDPOINT:-}
@@ -108,7 +104,7 @@ services:
     build: ../tenant-service/biz
     environment:
       <<: *app-env
-      MYSQL_HOST: 192.168.2.128
+      MYSQL_HOST: mysql
       MYSQL_USER: "${MYSQL_APP_USER:?MYSQL_APP_USER must be set}"
       MYSQL_PASSWORD: "${MYSQL_APP_PASSWORD:?MYSQL_APP_PASSWORD must be set}"
     expose:
@@ -120,10 +116,10 @@ services:
     build: ../customer-service/biz
     environment: &business-env
       <<: *app-env
-      MYSQL_HOST: 192.168.2.128
+      MYSQL_HOST: mysql
       MYSQL_USER: "${MYSQL_APP_USER:?MYSQL_APP_USER must be set}"
       MYSQL_PASSWORD: "${MYSQL_APP_PASSWORD:?MYSQL_APP_PASSWORD must be set}"
-      RABBITMQ_HOST: 192.168.2.128
+      RABBITMQ_HOST: rabbitmq
       RABBITMQ_USER: "${RABBITMQ_USER:?RABBITMQ_USER must be set}"
       RABBITMQ_PASSWORD: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD must be set}"
     expose:
@@ -148,6 +144,18 @@ services:
     expose:
       - "18105"
     depends_on: [rabbitmq, nacos]
+
+  product-service:
+    profiles: ["app"]
+    build: ../product-service/biz
+    environment:
+      <<: *app-env
+      MYSQL_HOST: mysql
+      MYSQL_USER: "${MYSQL_APP_USER:?MYSQL_APP_USER must be set}"
+      MYSQL_PASSWORD: "${MYSQL_APP_PASSWORD:?MYSQL_APP_PASSWORD must be set}"
+    expose:
+      - "18112"
+    depends_on: [mysql, nacos]
 
   quotation-service:
     profiles: ["app"]
@@ -186,13 +194,29 @@ services:
     build: ../file-service/biz
     environment:
       <<: *app-env
-      MINIO_ENDPOINT: http://192.168.2.128:9000
+      MINIO_ENDPOINT: http://minio:9000
       MINIO_ENABLED: "true"
       MINIO_ACCESS_KEY: "${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set}"
       MINIO_SECRET_KEY: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}"
     expose:
       - "18110"
     depends_on: [minio, nacos]
+
+  aigc-service:
+    profiles: ["app"]
+    build: ../aigc-service
+    environment:
+      <<: *business-env
+      MYSQL_HOST: mysql
+      REDIS_HOST: redis
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+    expose:
+      - "18111"
+    depends_on: [mysql, redis, rabbitmq, nacos]
 
 volumes:
   mysql-data:

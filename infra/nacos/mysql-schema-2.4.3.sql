@@ -14,6 +14,11 @@
  * limitations under the License.
  */
 
+CREATE DATABASE IF NOT EXISTS `nacos_config`
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+USE `nacos_config`;
+
 /******************************************/
 /*   表名称 = config_info                  */
 /******************************************/
@@ -207,4 +212,3 @@ CREATE TABLE `permissions` (
     `action` varchar(8) NOT NULL COMMENT 'action',
     UNIQUE INDEX `uk_role_permission` (`role`,`resource`,`action`) USING BTREE
 );
-

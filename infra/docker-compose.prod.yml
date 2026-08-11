@@ -1,83 +1,398 @@
+name: nexaflow
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  networks:
+    - nexaflow-network
+  logging: *default-logging
+
+x-common-env: &common-env
+  JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set to a random value of at least 32 bytes}"
+  AUTH_COOKIE_SECURE: "${AUTH_COOKIE_SECURE:?AUTH_COOKIE_SECURE must be set}"
+  SPRING_FLYWAY_BASELINE_ON_MIGRATE: "true"
+  SPRING_FLYWAY_BASELINE_VERSION: "11"
+  SPRING_CLOUD_NACOS_USERNAME: "${NACOS_USERNAME:?NACOS_USERNAME must be set}"
+  SPRING_CLOUD_NACOS_PASSWORD: "${NACOS_PASSWORD:?NACOS_PASSWORD must be set}"
+  NACOS_ADDR: nacos:8848
+  REDIS_HOST: redis
+  REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"
+
+x-mysql-env: &mysql-env
+  <<: *common-env
+  MYSQL_HOST: mysql
+  MYSQL_USER: "${MYSQL_APP_USER:?MYSQL_APP_USER must be set}"
+  MYSQL_PASSWORD: "${MYSQL_APP_PASSWORD:?MYSQL_APP_PASSWORD must be set}"
+
+x-messaging-env: &messaging-env
+  <<: *mysql-env
+  RABBITMQ_HOST: rabbitmq
+  RABBITMQ_USER: "${RABBITMQ_USER:?RABBITMQ_USER must be set}"
+  RABBITMQ_PASSWORD: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD must be set}"
+
 services:
   mysql:
-    ports: !reset []
+    <<: *service-defaults
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}"
+      MYSQL_DATABASE: trade_ai
+      MYSQL_USER: "${MYSQL_APP_USER:?MYSQL_APP_USER must be set}"
+      MYSQL_PASSWORD: "${MYSQL_APP_PASSWORD:?MYSQL_APP_PASSWORD must be set}"
+      TZ: Asia/Shanghai
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql:rw
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+      - ./nacos/mysql-schema-2.4.3.sql:/docker-entrypoint-initdb.d/000_nacos_schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -h localhost -uroot --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 2G
 
   redis:
-    ports: !reset []
+    <<: *service-defaults
+    image: redis:7.4
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"]
+    volumes:
+      - redis-data:/data:rw
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
 
   rabbitmq:
-    ports: !reset []
+    <<: *service-defaults
+    image: rabbitmq:3.13-management
+    environment:
+      RABBITMQ_DEFAULT_USER: "${RABBITMQ_USER:?RABBITMQ_USER must be set}"
+      RABBITMQ_DEFAULT_PASS: "${RABBITMQ_PASSWORD:?RABBITMQ_PASSWORD must be set}"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq:rw
+    healthcheck:
+      test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
+      interval: 15s
+      timeout: 10s
+      retries: 8
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
   minio:
-    ports: !reset []
+    <<: *service-defaults
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    environment:
+      MINIO_ROOT_USER: "${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set}"
+      MINIO_ROOT_PASSWORD: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}"
+    command: server /data --console-address ":9001"
+    volumes:
+      - minio-data:/data:rw
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 512M
 
   nacos:
-    ports: !reset []
+    <<: *service-defaults
+    image: nacos/nacos-server:v2.4.3
     environment:
+      MODE: standalone
+      NACOS_AUTH_ENABLE: "true"
+      NACOS_AUTH_TOKEN: "${NACOS_AUTH_TOKEN:?NACOS_AUTH_TOKEN must be set}"
+      NACOS_AUTH_IDENTITY_KEY: "${NACOS_AUTH_IDENTITY_KEY:?NACOS_AUTH_IDENTITY_KEY must be set}"
+      NACOS_AUTH_IDENTITY_VALUE: "${NACOS_AUTH_IDENTITY_VALUE:?NACOS_AUTH_IDENTITY_VALUE must be set}"
+      SPRING_DATASOURCE_PLATFORM: mysql
       MYSQL_SERVICE_HOST: mysql
-
-  sentinel:
-    ports: !reset []
+      MYSQL_SERVICE_PORT: 3306
+      MYSQL_SERVICE_DB_NAME: nacos_config
+      MYSQL_SERVICE_USER: root
+      MYSQL_SERVICE_PASSWORD: "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set}"
+      MYSQL_SERVICE_DB_PARAM: characterEncoding=UTF-8&connectTimeout=1000&socketTimeout=3000&autoReconnect=true&useSSL=false&allowPublicKeyRetrieval=true
+    depends_on:
+      mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8848/nacos/v1/console/health/readiness >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 1G
 
   gateway-service:
-    environment:
-      NACOS_ADDR: nacos:8848
-      SENTINEL_DASHBOARD: sentinel:8858
-      AUTH_COOKIE_SECURE: "true"
+    <<: *service-defaults
+    image: "nexaflow/gateway-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../gateway-service
+      dockerfile: Dockerfile
+    environment: *common-env
+    depends_on:
+      nacos:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
 
   auth-service:
+    <<: *service-defaults
+    image: "nexaflow/auth-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../auth-service/biz
+      dockerfile: Dockerfile
     environment:
-      NACOS_ADDR: nacos:8848
-      MYSQL_HOST: mysql
-      AUTH_COOKIE_SECURE: "true"
+      <<: *mysql-env
+      SMS_ENDPOINT: "${SMS_ENDPOINT:-}"
+      SMS_API_TOKEN: "${SMS_API_TOKEN:-}"
+      WECHAT_OPEN_APP_ID: "${WECHAT_OPEN_APP_ID:-}"
+      WECHAT_OPEN_APP_SECRET: "${WECHAT_OPEN_APP_SECRET:-}"
+      WECHAT_OPEN_REDIRECT_URI: "${WECHAT_OPEN_REDIRECT_URI:-}"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
 
   tenant-service:
-    environment:
-      NACOS_ADDR: nacos:8848
-      MYSQL_HOST: mysql
+    <<: *service-defaults
+    image: "nexaflow/tenant-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../tenant-service/biz
+      dockerfile: Dockerfile
+    environment: *mysql-env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
 
   customer-service:
-    environment:
-      NACOS_ADDR: nacos:8848
-      MYSQL_HOST: mysql
-      RABBITMQ_HOST: rabbitmq
+    <<: *service-defaults
+    image: "nexaflow/customer-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../customer-service/biz
+      dockerfile: Dockerfile
+    environment: *messaging-env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+
+  product-service:
+    <<: *service-defaults
+    image: "nexaflow/product-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../product-service/biz
+      dockerfile: Dockerfile
+    environment: *mysql-env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
 
   inquiry-service:
-    environment:
-      NACOS_ADDR: nacos:8848
-      MYSQL_HOST: mysql
-      RABBITMQ_HOST: rabbitmq
+    <<: *service-defaults
+    image: "nexaflow/inquiry-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../inquiry-service/biz
+      dockerfile: Dockerfile
+    environment: *messaging-env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
 
   ai-service:
+    <<: *service-defaults
+    image: "nexaflow/ai-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../ai-service/biz
+      dockerfile: Dockerfile
     environment:
-      NACOS_ADDR: nacos:8848
-      MYSQL_HOST: mysql
-      RABBITMQ_HOST: rabbitmq
+      <<: *messaging-env
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_MODEL: "${OPENAI_MODEL:-gpt-4o-mini}"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
 
   quotation-service:
-    environment:
-      NACOS_ADDR: nacos:8848
-      MYSQL_HOST: mysql
+    <<: *service-defaults
+    image: "nexaflow/quotation-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../quotation-service/biz
+      dockerfile: Dockerfile
+    environment: *messaging-env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
 
   order-service:
-    environment:
-      NACOS_ADDR: nacos:8848
-      MYSQL_HOST: mysql
-      RABBITMQ_HOST: rabbitmq
+    <<: *service-defaults
+    image: "nexaflow/order-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../order-service/biz
+      dockerfile: Dockerfile
+    environment: *messaging-env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
 
   task-service:
-    environment:
-      NACOS_ADDR: nacos:8848
-      MYSQL_HOST: mysql
-      RABBITMQ_HOST: rabbitmq
+    <<: *service-defaults
+    image: "nexaflow/task-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../task-service/biz
+      dockerfile: Dockerfile
+    environment: *messaging-env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
 
   notification-service:
-    environment:
-      NACOS_ADDR: nacos:8848
-      RABBITMQ_HOST: rabbitmq
+    <<: *service-defaults
+    image: "nexaflow/notification-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../notification-service/biz
+      dockerfile: Dockerfile
+    environment: *messaging-env
+    depends_on:
+      mysql:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
 
   file-service:
+    <<: *service-defaults
+    image: "nexaflow/file-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../file-service/biz
+      dockerfile: Dockerfile
     environment:
-      NACOS_ADDR: nacos:8848
-      MINIO_ENDPOINT: http://minio:9000
+      <<: *mysql-env
       MINIO_ENABLED: "true"
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: "${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set}"
+      MINIO_SECRET_KEY: "${MINIO_ROOT_PASSWORD:?MINIO_ROOT_PASSWORD must be set}"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      nacos:
+        condition: service_healthy
+
+  aigc-service:
+    <<: *service-defaults
+    image: "nexaflow/aigc-service:${IMAGE_TAG:-latest}"
+    build:
+      context: ../aigc-service
+      dockerfile: Dockerfile
+    environment:
+      <<: *messaging-env
+      OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
+      OPENAI_MODEL: "${OPENAI_MODEL:-gpt-4o-mini}"
+      DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
+      DEEPSEEK_BASE_URL: "${DEEPSEEK_BASE_URL:-https://api.deepseek.com}"
+      DEEPSEEK_MODEL: "${DEEPSEEK_MODEL:-deepseek-chat}"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      nacos:
+        condition: service_healthy
+
+  frontend:
+    <<: *service-defaults
+    image: "nexaflow/frontend:${IMAGE_TAG:-latest}"
+    build:
+      context: ../../tradeflow-ai-frontend
+      dockerfile: Dockerfile
+    ports:
+      - "${HTTP_PORT:-80}:80"
+    depends_on:
+      gateway-service:
+        condition: service_started
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 256M
+
+networks:
+  nexaflow-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/16
+
+volumes:
+  mysql-data:
+    driver: local
+  redis-data:
+    driver: local
+  rabbitmq-data:
+    driver: local
+  minio-data:
+    driver: local
