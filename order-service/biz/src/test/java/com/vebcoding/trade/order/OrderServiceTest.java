@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.vebcoding.trade.common.BusinessException;
+import com.vebcoding.trade.common.AccessDeniedException;
 import com.vebcoding.trade.common.ApiResponse;
 import com.vebcoding.trade.common.TenantContext;
 import com.vebcoding.trade.customer.api.CustomerDetailView;
@@ -75,6 +76,14 @@ class OrderServiceTest {
                 "cus-001", "prd-001", LocalDate.now().plusDays(20).toString())))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("所选产品已停用");
+    }
+
+    @Test
+    void exportRequiresAdministrativePermission() {
+        OrderService service = service();
+        TenantContext.setRole("SALES");
+
+        assertThatThrownBy(service::exportData).isInstanceOf(AccessDeniedException.class);
     }
 
     private OrderService service() {

@@ -65,5 +65,22 @@ if (-not $SkipPackage) {
 }
 
 Invoke-Compose -ComposeArguments @('up', '-d', '--build', '--remove-orphans')
+Wait-Healthy frontend
+$httpPort = Get-EnvValue 'HTTP_PORT'
+if (-not $httpPort) { $httpPort = '80' }
+$ready = $false
+for ($attempt = 0; $attempt -lt 30; $attempt++) {
+    try {
+        Invoke-RestMethod -Uri "http://127.0.0.1:$httpPort/readyz" -TimeoutSec 5 | Out-Null
+        $ready = $true
+        break
+    } catch {
+        Start-Sleep -Seconds 2
+    }
+}
+if (-not $ready) {
+    Invoke-Compose -ComposeArguments @('logs', '--tail=120', 'gateway-service')
+    throw 'The public entry is running, but the gateway readiness probe failed.'
+}
 Invoke-Compose -ComposeArguments @('ps')
-Write-Output "Deployment completed. Open http://<server-ip>:$(Get-EnvValue 'HTTP_PORT')"
+Write-Output "Deployment completed. Readiness probe: http://127.0.0.1:$httpPort/readyz"

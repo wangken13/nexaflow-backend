@@ -14,3 +14,8 @@ spring:
     url: jdbc:mysql://${MYSQL_HOST:192.168.2.128}:3306/trade_ai?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
     username: ${MYSQL_USER:root}
     password: ${MYSQL_PASSWORD:root}
+
+app:
+  billing:
+    checkout-base-url: ${BILLING_CHECKOUT_BASE_URL:}
+    webhook-secret: ${BILLING_WEBHOOK_SECRET:}

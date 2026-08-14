@@ -6,6 +6,7 @@ import static org.mockito.Mockito.mock;
 import com.vebcoding.trade.ai.api.AnalyzeInquiryRequest;
 import com.vebcoding.trade.ai.api.AiProviderStatus;
 import com.vebcoding.trade.ai.api.InquiryAnalysis;
+import com.vebcoding.trade.ai.api.KnowledgeReference;
 import com.vebcoding.trade.ai.controller.AiController;
 import com.vebcoding.trade.ai.mapper.InMemoryAiAnalysisMapper;
 import com.vebcoding.trade.ai.service.AiProviderStrategy;
@@ -13,6 +14,7 @@ import com.vebcoding.trade.ai.service.AiService;
 import com.vebcoding.trade.ai.service.AiStreamingService;
 import com.vebcoding.trade.ai.service.InquiryClassifier;
 import com.vebcoding.trade.ai.service.InquiryDraftFactory;
+import com.vebcoding.trade.ai.service.KnowledgeContextProvider;
 import com.vebcoding.trade.common.ApiResponse;
 import com.vebcoding.trade.common.TenantContext;
 import org.junit.jupiter.api.AfterEach;
@@ -44,7 +46,8 @@ class AiControllerTest {
 
         assertThat(response.data().intent()).isEqualTo("报价询盘");
         assertThat(response.data().nextActions()).isNotEmpty();
-        assertThat(response.data().quotationDraft()).contains("500 pcs");
+        assertThat(response.data().knowledgeSufficient()).isFalse();
+        assertThat(response.data().quotationDraft()).contains("企业知识库暂无可引用");
     }
 
     @Test
@@ -91,11 +94,15 @@ class AiControllerTest {
         AtomicReference<String> prompt = new AtomicReference<>();
         AiProviderStrategy provider = value -> { prompt.set(value); return "模型分析"; };
         AiService service = new AiService(provider, new InquiryClassifier(), new InquiryDraftFactory(),
-                new InMemoryAiAnalysisMapper(), content -> "[DELIVERY] 标准交期\n常规产品30天交付");
+                new InMemoryAiAnalysisMapper(), content -> new KnowledgeContextProvider.KnowledgeContext(
+                "[KB:kb-1][DELIVERY] 标准交期\n常规产品30天交付",
+                java.util.List.of(new KnowledgeReference("kb-1", "标准交期", "DELIVERY"))));
 
-        new AiController(service, mock(AiStreamingService.class))
-                .analyzeInquiry(new AnalyzeInquiryRequest("Please confirm lead time"));
+        InquiryAnalysis analysis = new AiController(service, mock(AiStreamingService.class))
+                .analyzeInquiry(new AnalyzeInquiryRequest("Please confirm lead time")).data();
 
         assertThat(prompt.get()).contains("企业知识库", "常规产品30天交付", "Please confirm lead time");
+        assertThat(analysis.knowledgeSufficient()).isTrue();
+        assertThat(analysis.sources()).extracting("id").containsExactly("kb-1");
     }
 }

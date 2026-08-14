@@ -12,14 +12,22 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 
 @Service
 public class TaskService {
     private static final List<String> ALLOWED_PRIORITIES = List.of("HIGH", "NORMAL", "LOW");
     private final TaskMapper taskMapper;
+    private final OperationalMetricsProvider metricsProvider;
 
     public TaskService(TaskMapper taskMapper) {
+        this(taskMapper, tenantId -> OperationalMetricsProvider.Metrics.empty());
+    }
+
+    @Autowired
+    public TaskService(TaskMapper taskMapper, OperationalMetricsProvider metricsProvider) {
         this.taskMapper = taskMapper;
+        this.metricsProvider = metricsProvider;
     }
 
     public List<TaskView> list() {
@@ -46,7 +54,14 @@ public class TaskService {
     public DailyReport dailyReport() {
         List<TaskView> tenantTasks = taskMapper.findByTenantId(TenantContext.tenantId());
         int openTasks = (int) tenantTasks.stream().filter(task -> !"DONE".equals(task.status())).count();
-        return new DailyReport(openTasks, 0, 0, openTasks > 0 ? "今日重点：完成高优先级客户跟进。" : "今日任务已清空，可复盘报价和订单风险。");
+        OperationalMetricsProvider.Metrics metrics = metricsProvider.load(TenantContext.tenantId());
+        String summary = metrics.overdueTasks() > 0 ? "存在逾期跟进，请优先明确负责人并完成客户响应。"
+                : metrics.riskyOrders() > 0 ? "存在交付风险订单，请核对交期并同步客户。"
+                : metrics.pendingApprovals() > 0 ? "有报价等待审批，请及时处理以免延误客户。"
+                : openTasks > 0 ? "今日重点：完成高优先级客户跟进。"
+                : "今日任务已清空，可复盘报价和订单风险。";
+        return new DailyReport(openTasks, metrics.newInquiries(), metrics.riskyOrders(),
+                metrics.pendingApprovals(), metrics.overdueTasks(), summary);
     }
 
     private String normalizePriority(String priority) {

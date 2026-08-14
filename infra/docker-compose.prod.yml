@@ -25,6 +25,11 @@ x-common-env: &common-env
   NACOS_ADDR: nacos:8848
   REDIS_HOST: redis
   REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD must be set}"
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,prometheus"
+  MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+  MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "never"
+  MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED: "true"
+  MANAGEMENT_HEALTH_READINESSSTATE_ENABLED: "true"
 
 x-mysql-env: &mysql-env
   <<: *common-env
@@ -112,6 +117,11 @@ services:
     command: server /data --console-address ":9001"
     volumes:
       - minio-data:/data:rw
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:9000/minio/health/live >/dev/null"]
+      interval: 15s
+      timeout: 5s
+      retries: 8
     deploy:
       resources:
         limits:
@@ -196,7 +206,10 @@ services:
     build:
       context: ../tenant-service/biz
       dockerfile: Dockerfile
-    environment: *mysql-env
+    environment:
+      <<: *mysql-env
+      BILLING_CHECKOUT_BASE_URL: "${BILLING_CHECKOUT_BASE_URL:-}"
+      BILLING_WEBHOOK_SECRET: "${BILLING_WEBHOOK_SECRET:-}"
     depends_on:
       mysql:
         condition: service_healthy
@@ -237,7 +250,9 @@ services:
     build:
       context: ../inquiry-service/biz
       dockerfile: Dockerfile
-    environment: *messaging-env
+    environment:
+      <<: *messaging-env
+      INTEGRATION_MASTER_KEY: "${INTEGRATION_MASTER_KEY:?INTEGRATION_MASTER_KEY must be at least 32 random characters}"
     depends_on:
       mysql:
         condition: service_healthy
@@ -343,7 +358,7 @@ services:
       mysql:
         condition: service_healthy
       minio:
-        condition: service_started
+        condition: service_healthy
       nacos:
         condition: service_healthy
 

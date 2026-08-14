@@ -13,6 +13,10 @@ import com.vebcoding.trade.tenant.api.KnowledgeArticleView;
 import com.vebcoding.trade.tenant.api.SubscriptionView;
 import com.vebcoding.trade.tenant.api.UpsertChannelConfigRequest;
 import com.vebcoding.trade.tenant.api.UpsertKnowledgeArticleRequest;
+import com.vebcoding.trade.tenant.api.CreateDepartmentRequest;
+import com.vebcoding.trade.tenant.api.DepartmentView;
+import com.vebcoding.trade.tenant.api.UpdateMemberAccessRequest;
+import com.vebcoding.trade.tenant.api.ImportJobView;
 import com.vebcoding.trade.tenant.mapper.TenantMapper;
 import java.time.Instant;
 import java.util.List;
@@ -29,6 +33,7 @@ public class TenantService {
     private static final Set<String> STATUSES = Set.of("ACTIVE", "DISABLED");
     private static final Set<String> KNOWLEDGE_CATEGORIES = Set.of("PRODUCT", "PRICING", "DELIVERY", "POLICY", "FAQ");
     private static final Set<String> CHANNEL_TYPES = Set.of("EMAIL", "WEBSITE", "WHATSAPP", "WECHAT_WORK");
+    private static final Set<String> DATA_SCOPES = Set.of("ALL", "DEPARTMENT", "SELF");
     private final TenantMapper tenantMapper;
     private final PasswordEncoder passwordEncoder;
 
@@ -93,9 +98,66 @@ public class TenantService {
         return updated;
     }
 
+    @Transactional
+    public MemberView updateMemberAccess(String id, UpdateMemberAccessRequest request) {
+        RoleGuard.requireAny("OWNER", "ADMIN");
+        MemberView current = member(id);
+        String scope = normalizeDataScope(request.dataScope());
+        if (scope.equals("ALL") && !TenantContext.role().equals("OWNER")) {
+            throw new BusinessException("只有企业所有者可以授予全部数据权限");
+        }
+        String departmentId = TextSanitizer.optional(request.departmentId());
+        if (scope.equals("DEPARTMENT") && departmentId.isBlank()) {
+            throw new BusinessException("部门数据范围必须选择所属部门");
+        }
+        if (!departmentId.isBlank()) requireActiveDepartment(departmentId);
+        MemberView updated = tenantMapper.updateMemberAccess(TenantContext.tenantId(), id, departmentId, scope);
+        audit("TENANT", "MEMBER_ACCESS_CHANGED", id,
+                current.dataScope() + " -> " + updated.dataScope());
+        return updated;
+    }
+
+    public List<DepartmentView> departments() {
+        RoleGuard.requireAny("OWNER", "ADMIN");
+        return tenantMapper.findDepartments(TenantContext.tenantId());
+    }
+
+    @Transactional
+    public DepartmentView createDepartment(CreateDepartmentRequest request) {
+        RoleGuard.requireAny("OWNER", "ADMIN");
+        String parentId = TextSanitizer.optional(request.parentId());
+        if (!parentId.isBlank()) requireActiveDepartment(parentId);
+        DepartmentView department = new DepartmentView("dep-" + UUID.randomUUID(), TenantContext.tenantId(),
+                TextSanitizer.required(request.name(), "部门名称"), parentId, "ACTIVE", Instant.now().toString());
+        try {
+            DepartmentView saved = tenantMapper.saveDepartment(department);
+            audit("TENANT", "DEPARTMENT_CREATED", saved.id(), "新增部门 " + saved.name());
+            return saved;
+        } catch (org.springframework.dao.DuplicateKeyException exception) {
+            throw BusinessException.conflict("部门名称已存在");
+        }
+    }
+
+    @Transactional
+    public DepartmentView updateDepartmentStatus(String id, String status) {
+        RoleGuard.requireAny("OWNER", "ADMIN");
+        DepartmentView current = tenantMapper.findDepartment(TenantContext.tenantId(), id)
+                .orElseThrow(() -> BusinessException.notFound("部门不存在"));
+        String normalized = status == null ? "" : status.trim().toUpperCase(Locale.ROOT);
+        if (!STATUSES.contains(normalized)) throw new BusinessException("部门状态不合法");
+        DepartmentView updated = tenantMapper.updateDepartmentStatus(TenantContext.tenantId(), id, normalized);
+        audit("TENANT", "DEPARTMENT_STATUS_CHANGED", id, current.status() + " -> " + updated.status());
+        return updated;
+    }
+
     public List<AuditLogView> auditLogs(String module, String keyword) {
         RoleGuard.requireAny("OWNER", "ADMIN");
         return tenantMapper.findAuditLogs(TenantContext.tenantId(), module, keyword);
+    }
+
+    public List<ImportJobView> importJobs() {
+        RoleGuard.requireAny("OWNER", "ADMIN");
+        return tenantMapper.findImportJobs(TenantContext.tenantId());
     }
 
     public List<KnowledgeArticleView> knowledgeArticles() {
@@ -184,6 +246,19 @@ public class TenantService {
         String normalized = TextSanitizer.optional(channelType).toUpperCase(Locale.ROOT);
         if (!CHANNEL_TYPES.contains(normalized)) throw new BusinessException("渠道类型不合法");
         return normalized;
+    }
+
+    private String normalizeDataScope(String dataScope) {
+        String normalized = TextSanitizer.optional(dataScope).toUpperCase(Locale.ROOT);
+        if (!DATA_SCOPES.contains(normalized)) throw new BusinessException("数据范围不合法");
+        return normalized;
+    }
+
+    private DepartmentView requireActiveDepartment(String departmentId) {
+        DepartmentView department = tenantMapper.findDepartment(TenantContext.tenantId(), departmentId)
+                .orElseThrow(() -> BusinessException.notFound("部门不存在"));
+        if (!department.status().equals("ACTIVE")) throw BusinessException.conflict("所选部门已停用");
+        return department;
     }
 
     private void audit(String module, String action, String targetId, String detail) {

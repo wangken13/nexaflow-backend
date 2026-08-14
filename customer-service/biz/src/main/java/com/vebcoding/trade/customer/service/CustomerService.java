@@ -5,6 +5,7 @@ import com.vebcoding.trade.common.BusinessException;
 import com.vebcoding.trade.common.TextSanitizer;
 import com.vebcoding.trade.common.RoleGuard;
 import com.vebcoding.trade.common.BulkImportResult;
+import com.vebcoding.trade.common.ImportJobRecorder;
 import com.vebcoding.trade.customer.api.CreateCustomerRequest;
 import com.vebcoding.trade.customer.api.CustomerView;
 import com.vebcoding.trade.customer.api.ContactView;
@@ -24,12 +25,24 @@ import org.springframework.stereotype.Service;
 @Service
 public class CustomerService {
     private final CustomerMapper customerMapper;
+    private final CustomerAccessPolicy accessPolicy;
+    private final SensitiveDataMasker sensitiveDataMasker;
+    private final ImportJobRecorder importJobRecorder;
 
-    public CustomerService(CustomerMapper customerMapper) {
+    public CustomerService(CustomerMapper customerMapper, CustomerAccessPolicy accessPolicy,
+                           SensitiveDataMasker sensitiveDataMasker, ImportJobRecorder importJobRecorder) {
         this.customerMapper = customerMapper;
+        this.accessPolicy = accessPolicy;
+        this.sensitiveDataMasker = sensitiveDataMasker;
+        this.importJobRecorder = importJobRecorder;
     }
 
     public List<CustomerView> list() {
+        return accessPolicy.visibleCustomers();
+    }
+
+    public List<CustomerView> exportData() {
+        RoleGuard.requireAny("OWNER", "ADMIN");
         return customerMapper.findByTenantId(TenantContext.tenantId());
     }
 
@@ -38,15 +51,21 @@ public class CustomerService {
         String name = TextSanitizer.required(request.name(), "客户名称");
         String country = TextSanitizer.optional(request.country());
         String tag = TextSanitizer.optional(request.tag());
+        CustomerAccessProfile profile = accessPolicy.currentProfile();
+        AssignableOwner owner = customerMapper.findAssignableOwner(TenantContext.tenantId(), profile.userId())
+                .orElseThrow(() -> BusinessException.notFound("当前成员账号不存在或已停用"));
         CustomerView customer = new CustomerView("cus-" + UUID.randomUUID(), TenantContext.tenantId(),
-                name, country, tag, Instant.now().toString());
+                name, country, tag, owner.userId(), owner.displayName(), owner.departmentId(), owner.departmentName(),
+                Instant.now().toString());
         return customerMapper.save(customer);
     }
 
     public CustomerDetailView detail(String id) {
         CustomerView customer = requireCustomer(id);
-        return new CustomerDetailView(customer, customerMapper.findContacts(customer.tenantId(), id),
+        CustomerDetailView detail = new CustomerDetailView(customer,
+                customerMapper.findContacts(customer.tenantId(), id),
                 customerMapper.findFollowups(customer.tenantId(), id));
+        return sensitiveDataMasker.mask(detail, TenantContext.role());
     }
 
     public CustomerView update(String id, CreateCustomerRequest request) {
@@ -54,7 +73,19 @@ public class CustomerService {
         CustomerView current = requireCustomer(id);
         return customerMapper.save(new CustomerView(current.id(), current.tenantId(),
                 TextSanitizer.required(request.name(), "客户名称"), TextSanitizer.optional(request.country()),
-                TextSanitizer.optional(request.tag()), current.createdAt()));
+                TextSanitizer.optional(request.tag()), current.ownerId(), current.ownerName(), current.departmentId(),
+                current.departmentName(), current.createdAt()));
+    }
+
+    public CustomerView assignOwner(String id, String ownerId) {
+        RoleGuard.requireAny("OWNER", "ADMIN");
+        CustomerView current = requireCustomer(id);
+        AssignableOwner owner = customerMapper.findAssignableOwner(TenantContext.tenantId(),
+                        TextSanitizer.required(ownerId, "负责人"))
+                .orElseThrow(() -> BusinessException.notFound("负责人不存在或已停用"));
+        return customerMapper.save(new CustomerView(current.id(), current.tenantId(), current.name(),
+                current.country(), current.tag(), owner.userId(), owner.displayName(), owner.departmentId(),
+                owner.departmentName(), current.createdAt()));
     }
 
     public void delete(String id) {
@@ -84,8 +115,10 @@ public class CustomerService {
     }
 
     private CustomerView requireCustomer(String id) {
-        return customerMapper.findByTenantIdAndId(TenantContext.tenantId(), id)
+        CustomerView customer = customerMapper.findByTenantIdAndId(TenantContext.tenantId(), id)
                 .orElseThrow(() -> BusinessException.notFound("客户不存在"));
+        accessPolicy.requireAccess(customer);
+        return customer;
     }
 
     public List<String> tags() {
@@ -95,6 +128,7 @@ public class CustomerService {
     public BulkImportResult bulkImport(List<CreateCustomerRequest> rows) {
         RoleGuard.requireAny("OWNER", "ADMIN", "SALES");
         if (rows == null || rows.isEmpty() || rows.size() > 500) throw new BusinessException("单次导入数量必须为1至500条");
+        String jobId = importJobRecorder.start("CUSTOMER", rows.size());
         HashSet<String> names = customerMapper.findByTenantId(TenantContext.tenantId()).stream()
                 .map(item -> item.name().trim().toLowerCase(Locale.ROOT))
                 .collect(java.util.stream.Collectors.toCollection(HashSet::new));
@@ -108,6 +142,6 @@ public class CustomerService {
             create(row);
             imported++;
         }
-        return new BulkImportResult(rows.size(), imported, rows.size() - imported, List.copyOf(errors));
+        return importJobRecorder.complete(jobId, rows.size(), imported, errors);
     }
 }

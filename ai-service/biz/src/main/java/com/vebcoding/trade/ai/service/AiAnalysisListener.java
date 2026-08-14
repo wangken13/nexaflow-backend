@@ -5,6 +5,7 @@ import com.vebcoding.trade.common.TenantContext;
 import com.vebcoding.trade.inquiry.api.InquiryCreatedEvent;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 @Component
 public class AiAnalysisListener {
@@ -17,6 +18,7 @@ public class AiAnalysisListener {
     }
 
     @RabbitListener(queues = "trade.ai.analysis")
+    @Transactional
     public void onAnalysisRequested(InquiryCreatedEvent event) {
         if (jdbcTemplate.update("INSERT IGNORE INTO message_consumption (consumer_name, event_id) VALUES ('ai-analysis', ?)", event.eventId()) != 1) return;
         try {

@@ -11,6 +11,8 @@ import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.ReactiveStringRedisTemplate;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.server.ServerWebExchange;
@@ -25,14 +27,20 @@ public class GatewayAbuseProtectionFilter implements GlobalFilter, Ordered {
             "/api/auth/captcha", new Policy("captcha", 20, Duration.ofMinutes(10)),
             "/api/auth/login", new Policy("login", 20, Duration.ofMinutes(15)),
             "/api/auth/register", new Policy("register", 5, Duration.ofHours(1)));
+    private static final Policy INBOUND_POLICY = new Policy("channel-inbound", 120, Duration.ofMinutes(1));
     private final Map<String, Window> windows = new ConcurrentHashMap<>();
+    private final ReactiveStringRedisTemplate redisTemplate;
+
+    public GatewayAbuseProtectionFilter(ObjectProvider<ReactiveStringRedisTemplate> redisTemplate) {
+        this.redisTemplate = redisTemplate.getIfAvailable();
+    }
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         Policy policy = policy(exchange.getRequest().getURI().getPath());
         String key = policy.name() + ":" + clientIp(exchange.getRequest());
-        if (!allow(key, policy)) return reject(exchange);
-        return chain.filter(exchange);
+        return allowDistributed(key, policy)
+                .flatMap(allowed -> allowed ? chain.filter(exchange) : reject(exchange));
     }
 
     @Override public int getOrder() { return -200; }
@@ -46,7 +54,21 @@ public class GatewayAbuseProtectionFilter implements GlobalFilter, Ordered {
         return count <= policy.maxRequests();
     }
 
+    private Mono<Boolean> allowDistributed(String key, Policy policy) {
+        if (redisTemplate == null) return Mono.just(allow(key, policy));
+        String redisKey = "nexaflow:rate:" + key;
+        return redisTemplate.opsForValue().increment(redisKey)
+                .flatMap(count -> count == 1
+                        ? redisTemplate.expire(redisKey, policy.window()).thenReturn(true)
+                        : Mono.just(count <= policy.maxRequests()))
+                .onErrorResume(error -> {
+                    log.warn("gateway.rate_limit.redis_unavailable fallback=local cause={}", error.getClass().getSimpleName());
+                    return Mono.just(allow(key, policy));
+                });
+    }
+
     private Policy policy(String path) {
+        if (path.startsWith("/api/inquiry/inbound/")) return INBOUND_POLICY;
         return AUTH_POLICIES.getOrDefault(path, DEFAULT_POLICY);
     }
 

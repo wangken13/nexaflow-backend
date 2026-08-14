@@ -24,6 +24,7 @@ public class ProductController {
     private final ProductService service;
     public ProductController(ProductService service) { this.service = service; }
     @GetMapping public ApiResponse<List<ProductView>> list(@RequestParam(defaultValue = "") String keyword) { return ApiResponse.ok(service.list(keyword)); }
+    @PostMapping("/export") public ApiResponse<List<ProductView>> exportData() { return ApiResponse.ok(service.exportData()); }
     @GetMapping("/{id}") public ApiResponse<ProductView> get(@PathVariable String id) { return ApiResponse.ok(service.get(id)); }
     @PostMapping public ApiResponse<ProductView> create(@RequestBody UpsertProductRequest request) { return ApiResponse.ok(service.create(request)); }
     @PutMapping("/{id}") public ApiResponse<ProductView> update(@PathVariable String id, @RequestBody UpsertProductRequest request) { return ApiResponse.ok(service.update(id, request)); }

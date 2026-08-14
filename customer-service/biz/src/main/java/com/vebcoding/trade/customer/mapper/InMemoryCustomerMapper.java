@@ -3,6 +3,9 @@ package com.vebcoding.trade.customer.mapper;
 import com.vebcoding.trade.customer.api.CustomerView;
 import com.vebcoding.trade.customer.api.ContactView;
 import com.vebcoding.trade.customer.api.FollowupView;
+import com.vebcoding.trade.common.TenantContext;
+import com.vebcoding.trade.customer.service.AssignableOwner;
+import com.vebcoding.trade.customer.service.CustomerAccessProfile;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -18,6 +21,25 @@ public class InMemoryCustomerMapper implements CustomerMapper {
     @Override
     public List<CustomerView> findByTenantId(String tenantId) {
         return customers.stream().filter(item -> tenantId.equals(item.tenantId())).toList();
+    }
+
+    public List<CustomerView> findByTenantIdAndOwnerId(String tenantId, String ownerId) {
+        return customers.stream().filter(item -> tenantId.equals(item.tenantId()) && ownerId.equals(item.ownerId())).toList();
+    }
+
+    public List<CustomerView> findByTenantIdAndDepartmentId(String tenantId, String departmentId) {
+        return customers.stream().filter(item -> tenantId.equals(item.tenantId())
+                && departmentId.equals(item.departmentId())).toList();
+    }
+
+    public CustomerAccessProfile findAccessProfile(String tenantId, String userId, String fallbackRole) {
+        String scope = "OWNER".equals(fallbackRole) || "ADMIN".equals(fallbackRole) ? "ALL"
+                : "OPERATOR".equals(fallbackRole) ? "DEPARTMENT" : "SELF";
+        return new CustomerAccessProfile(userId, fallbackRole, scope, "dep-sales");
+    }
+
+    public Optional<AssignableOwner> findAssignableOwner(String tenantId, String userId) {
+        return Optional.of(new AssignableOwner(userId, userId, "dep-sales", "销售部"));
     }
 
     @Override

@@ -8,6 +8,7 @@ import static com.vebcoding.trade.common.JdbcValueSupport.timestampToIso;
 import com.vebcoding.trade.quotation.api.QuotationItemView;
 import com.vebcoding.trade.quotation.api.QuotationView;
 import com.vebcoding.trade.quotation.api.QuotationApprovalView;
+import com.vebcoding.trade.quotation.api.ApprovalRuleView;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.time.LocalDate;
@@ -26,7 +27,8 @@ public class JdbcQuotationMapper implements QuotationMapper {
     public List<QuotationView> findByTenantId(String tenantId) {
         return jdbcTemplate.query("""
                 SELECT id, tenant_id, customer_id, quotation_no, product_name, quantity, unit_price, currency,
-                  trade_term, destination_port, freight, valid_until, notes, status, created_at
+                  trade_term, destination_port, freight, valid_until, notes, approval_required, approval_reason,
+                  status, created_at
                 FROM quotations WHERE tenant_id=? ORDER BY created_at DESC
                 """, (rs, rowNum) -> mapHeader(rs), tenantId);
     }
@@ -36,7 +38,8 @@ public class JdbcQuotationMapper implements QuotationMapper {
         try {
             return Optional.ofNullable(jdbcTemplate.queryForObject("""
                     SELECT id, tenant_id, customer_id, quotation_no, product_name, quantity, unit_price, currency,
-                      trade_term, destination_port, freight, valid_until, notes, status, created_at
+                      trade_term, destination_port, freight, valid_until, notes, approval_required, approval_reason,
+                      status, created_at
                     FROM quotations WHERE tenant_id=? AND id=?
                     """, (rs, rowNum) -> mapHeader(rs), tenantId, id));
         } catch (EmptyResultDataAccessException ex) {
@@ -48,18 +51,20 @@ public class JdbcQuotationMapper implements QuotationMapper {
     public QuotationView save(QuotationView quotation) {
         jdbcTemplate.update("""
                 INSERT INTO quotations (id, tenant_id, customer_id, product_name, quantity, unit_price, status,
-                  quotation_no, currency, trade_term, destination_port, freight, valid_until, notes, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  quotation_no, currency, trade_term, destination_port, freight, valid_until, notes,
+                  approval_required, approval_reason, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE customer_id=VALUES(customer_id), product_name=VALUES(product_name),
                   quantity=VALUES(quantity), unit_price=VALUES(unit_price), status=VALUES(status),
                   quotation_no=VALUES(quotation_no), currency=VALUES(currency), trade_term=VALUES(trade_term),
                   destination_port=VALUES(destination_port), freight=VALUES(freight), valid_until=VALUES(valid_until),
-                  notes=VALUES(notes)
+                  notes=VALUES(notes), approval_required=VALUES(approval_required),
+                  approval_reason=VALUES(approval_reason)
                 """, quotation.id(), quotation.tenantId(), quotation.customerId(), quotation.productName(),
                 quotation.quantity(), quotation.unitPrice(), quotation.status(), quotation.quotationNo(),
                 quotation.currency(), quotation.tradeTerm(), blankToNull(quotation.destinationPort()),
                 quotation.freight(), toDate(quotation.validUntil()), blankToNull(quotation.notes()),
-                isoToTimestamp(quotation.createdAt()));
+                quotation.approvalRequired(), blankToNull(quotation.approvalReason()), isoToTimestamp(quotation.createdAt()));
         jdbcTemplate.update("DELETE FROM quotation_items WHERE tenant_id=? AND quotation_id=?",
                 quotation.tenantId(), quotation.id());
         int sort = 0;
@@ -95,6 +100,50 @@ public class JdbcQuotationMapper implements QuotationMapper {
         return approval;
     }
 
+    @Override
+    public List<ApprovalRuleView> findApprovalRules(String tenantId) {
+        return jdbcTemplate.query("""
+                SELECT id, tenant_id, rule_name, rule_type, threshold_amount, condition_value,
+                  enabled_flag, created_at, updated_at
+                FROM quotation_approval_rules WHERE tenant_id=? ORDER BY created_at DESC
+                """, (rs, rowNum) -> new ApprovalRuleView(rs.getString("id"), rs.getString("tenant_id"),
+                rs.getString("rule_name"), rs.getString("rule_type"), rs.getBigDecimal("threshold_amount"),
+                stringOrEmpty(rs, "condition_value"), rs.getBoolean("enabled_flag"),
+                timestampToIso(rs, "created_at"), timestampToIso(rs, "updated_at")), tenantId);
+    }
+
+    @Override
+    public Optional<ApprovalRuleView> findApprovalRule(String tenantId, String id) {
+        return findApprovalRules(tenantId).stream().filter(rule -> id.equals(rule.id())).findFirst();
+    }
+
+    @Override
+    public ApprovalRuleView saveApprovalRule(ApprovalRuleView rule) {
+        jdbcTemplate.update("""
+                INSERT INTO quotation_approval_rules
+                  (id, tenant_id, rule_name, rule_type, threshold_amount, condition_value, enabled_flag, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE rule_name=VALUES(rule_name), rule_type=VALUES(rule_type),
+                  threshold_amount=VALUES(threshold_amount), condition_value=VALUES(condition_value),
+                  enabled_flag=VALUES(enabled_flag), updated_at=VALUES(updated_at)
+                """, rule.id(), rule.tenantId(), rule.name(), rule.ruleType(), rule.thresholdAmount(),
+                blankToNull(rule.conditionValue()), rule.enabled(), isoToTimestamp(rule.createdAt()),
+                isoToTimestamp(rule.updatedAt()));
+        return rule;
+    }
+
+    @Override
+    public boolean deleteApprovalRule(String tenantId, String id) {
+        return jdbcTemplate.update("DELETE FROM quotation_approval_rules WHERE tenant_id=? AND id=?", tenantId, id) > 0;
+    }
+
+    @Override
+    public String findCustomerTag(String tenantId, String customerId) {
+        List<String> tags = jdbcTemplate.query("SELECT tag FROM customers WHERE tenant_id=? AND id=?",
+                (rs, rowNum) -> stringOrEmpty(rs, "tag"), tenantId, customerId);
+        return tags.isEmpty() ? "" : tags.getFirst();
+    }
+
     private QuotationView mapHeader(java.sql.ResultSet rs) throws java.sql.SQLException {
         String tenantId = rs.getString("tenant_id");
         String id = rs.getString("id");
@@ -113,7 +162,9 @@ public class JdbcQuotationMapper implements QuotationMapper {
                 rs.getString("product_name"), rs.getInt("quantity"), rs.getBigDecimal("unit_price"),
                 rs.getString("currency"), rs.getString("trade_term"), stringOrEmpty(rs, "destination_port"),
                 freight, total, validUntil == null ? "" : validUntil.toLocalDate().toString(),
-                stringOrEmpty(rs, "notes"), rs.getString("status"), items, timestampToIso(rs, "created_at"));
+                stringOrEmpty(rs, "notes"), rs.getBoolean("approval_required"),
+                stringOrEmpty(rs, "approval_reason"), rs.getString("status"), items,
+                timestampToIso(rs, "created_at"));
     }
 
     private Date toDate(String value) {

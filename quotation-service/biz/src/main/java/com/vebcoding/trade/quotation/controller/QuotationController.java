@@ -5,6 +5,8 @@ import com.vebcoding.trade.quotation.api.CreateQuotationRequest;
 import com.vebcoding.trade.quotation.api.QuotationView;
 import com.vebcoding.trade.quotation.api.QuotationApprovalRequest;
 import com.vebcoding.trade.quotation.api.QuotationApprovalView;
+import com.vebcoding.trade.quotation.api.ApprovalRuleView;
+import com.vebcoding.trade.quotation.api.UpsertApprovalRuleRequest;
 import jakarta.validation.Valid;
 import com.vebcoding.trade.quotation.service.QuotationService;
 import java.util.List;
@@ -14,6 +16,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -28,6 +32,29 @@ public class QuotationController {
     @GetMapping
     public ApiResponse<List<QuotationView>> list() {
         return ApiResponse.ok(quotationService.list());
+    }
+
+    @GetMapping("/approval-rules")
+    public ApiResponse<List<ApprovalRuleView>> approvalRules() {
+        return ApiResponse.ok(quotationService.approvalRules());
+    }
+
+    @PostMapping("/approval-rules")
+    public ApiResponse<ApprovalRuleView> createApprovalRule(
+            @Valid @RequestBody UpsertApprovalRuleRequest request) {
+        return ApiResponse.ok(quotationService.createApprovalRule(request));
+    }
+
+    @PutMapping("/approval-rules/{id}")
+    public ApiResponse<ApprovalRuleView> updateApprovalRule(@PathVariable String id,
+            @Valid @RequestBody UpsertApprovalRuleRequest request) {
+        return ApiResponse.ok(quotationService.updateApprovalRule(id, request));
+    }
+
+    @DeleteMapping("/approval-rules/{id}")
+    public ApiResponse<Void> deleteApprovalRule(@PathVariable String id) {
+        quotationService.deleteApprovalRule(id);
+        return ApiResponse.ok(null);
     }
 
     @PostMapping

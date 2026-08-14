@@ -30,6 +30,14 @@ Java 微服务后端，支撑企业客户协同平台的认证、租户、客户
 - `task-service`: 跟进任务与日报
 - `notification-service`: 站内通知
 - `file-service`: 文件上传与 MinIO 接入点
+- `product-service`: 产品目录、价格与批量导入
+- `aigc-service`: 独立 AIGC 能力接入
+
+## Production Delivery
+
+- 采购验收矩阵：[`docs/CUSTOMER_ACCEPTANCE.md`](docs/CUSTOMER_ACCEPTANCE.md)
+- 系统使用手册：[`docs/SYSTEM_MANUAL.md`](docs/SYSTEM_MANUAL.md)
+- 部署运维手册：[`docs/OPERATIONS_RUNBOOK.md`](docs/OPERATIONS_RUNBOOK.md)
 
 ## Local Infrastructure
 
@@ -44,6 +52,15 @@ docker compose up -d
 
 ```bash
 mvn clean test
+```
+
+生产编排校验、部署、冒烟与备份：
+
+```bash
+docker compose --env-file infra/.env.prod -f infra/docker-compose.prod.yml config --quiet
+sh infra/scripts/deploy.sh
+sh infra/scripts/smoke-test.sh https://www.example.com
+sh infra/scripts/backup.sh
 ```
 
 ## Run

@@ -3,11 +3,21 @@ package com.vebcoding.trade.customer.mapper;
 import com.vebcoding.trade.customer.api.CustomerView;
 import com.vebcoding.trade.customer.api.ContactView;
 import com.vebcoding.trade.customer.api.FollowupView;
+import com.vebcoding.trade.customer.service.AssignableOwner;
+import com.vebcoding.trade.customer.service.CustomerAccessProfile;
 import java.util.List;
 import java.util.Optional;
 
 public interface CustomerMapper {
     List<CustomerView> findByTenantId(String tenantId);
+
+    List<CustomerView> findByTenantIdAndOwnerId(String tenantId, String ownerId);
+
+    List<CustomerView> findByTenantIdAndDepartmentId(String tenantId, String departmentId);
+
+    CustomerAccessProfile findAccessProfile(String tenantId, String userId, String fallbackRole);
+
+    Optional<AssignableOwner> findAssignableOwner(String tenantId, String userId);
 
     CustomerView save(CustomerView customer);
 

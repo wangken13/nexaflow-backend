@@ -7,6 +7,7 @@ import com.vebcoding.trade.common.BusinessException;
 import com.vebcoding.trade.common.TenantContext;
 import com.vebcoding.trade.task.api.CreateTaskRequest;
 import com.vebcoding.trade.task.mapper.InMemoryTaskMapper;
+import com.vebcoding.trade.task.service.OperationalMetricsProvider;
 import com.vebcoding.trade.task.service.TaskService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterEach;
@@ -35,6 +36,20 @@ class TaskServiceTest {
         service.complete(task.id());
 
         assertThat(service.dailyReport().openTasks()).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
+    void dailyReportUsesOperationalMetricsAndPrioritizesOverdueWork() {
+        OperationalMetricsProvider metrics = tenantId -> new OperationalMetricsProvider.Metrics(6, 2, 3, 4);
+        TaskService service = new TaskService(new InMemoryTaskMapper(), metrics);
+
+        var report = service.dailyReport();
+
+        assertThat(report.newInquiries()).isEqualTo(6);
+        assertThat(report.riskyOrders()).isEqualTo(2);
+        assertThat(report.pendingApprovals()).isEqualTo(3);
+        assertThat(report.overdueTasks()).isEqualTo(4);
+        assertThat(report.summary()).contains("逾期跟进");
     }
 
     @Test

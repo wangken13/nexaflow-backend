@@ -74,5 +74,23 @@ if [ "${SKIP_PACKAGE:-false}" != "true" ]; then
 fi
 
 compose up -d --build --remove-orphans
+wait_healthy frontend
+
+http_port=$(read_env HTTP_PORT)
+http_port=${http_port:-80}
+attempt=0
+while [ "$attempt" -lt 30 ]; do
+  if curl -fsS "http://127.0.0.1:$http_port/readyz" >/dev/null 2>&1; then
+    break
+  fi
+  attempt=$((attempt + 1))
+  sleep 2
+done
+if [ "$attempt" -eq 30 ]; then
+  echo "The public entry is running, but the gateway readiness probe failed." >&2
+  compose logs --tail=120 gateway-service
+  exit 1
+fi
+
 compose ps
-echo "Deployment completed. Open http://<server-ip>:$(read_env HTTP_PORT)"
+echo "Deployment completed. Readiness probe: http://127.0.0.1:$http_port/readyz"

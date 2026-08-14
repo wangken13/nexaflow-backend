@@ -17,9 +17,9 @@ public class RabbitConfig {
     }
 
     @Bean public Queue aiAnalysisDeadLetterQueue() { return new Queue("trade.ai.analysis.dlq", true); }
-    @Bean public TopicExchange tradeAiExchange() { return new TopicExchange("trade.ai", true, false); }
+    @Bean public TopicExchange tradeEventsExchange() { return new TopicExchange("trade.events", true, false); }
     @Bean public TopicExchange tradeAiDeadLetterExchange() { return new TopicExchange("trade.ai.dlx", true, false); }
-    @Bean public Binding aiAnalysisBinding(Queue aiAnalysisQueue, TopicExchange tradeAiExchange) { return BindingBuilder.bind(aiAnalysisQueue).to(tradeAiExchange).with("ai.analysis.requested"); }
+    @Bean public Binding aiAnalysisBinding(Queue aiAnalysisQueue, TopicExchange tradeEventsExchange) { return BindingBuilder.bind(aiAnalysisQueue).to(tradeEventsExchange).with("inquiry.created"); }
     @Bean public Binding aiAnalysisDeadLetterBinding(Queue aiAnalysisDeadLetterQueue, TopicExchange tradeAiDeadLetterExchange) { return BindingBuilder.bind(aiAnalysisDeadLetterQueue).to(tradeAiDeadLetterExchange).with("#"); }
     @Bean public Jackson2JsonMessageConverter messageConverter() { return new Jackson2JsonMessageConverter(); }
 }

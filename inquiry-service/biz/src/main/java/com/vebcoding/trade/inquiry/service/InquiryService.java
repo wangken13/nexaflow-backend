@@ -37,15 +37,18 @@ public class InquiryService {
     @Transactional
     public InquiryView create(CreateInquiryRequest request) {
         RoleGuard.requireAny("OWNER", "ADMIN", "SALES");
-        String customerId = TextSanitizer.required(request.customerId(), "客户ID");
-        String subject = TextSanitizer.required(request.subject(), "询盘主题");
-        String content = TextSanitizer.required(request.content(), "询盘内容");
-        InquiryView inquiry = new InquiryView("inq-" + UUID.randomUUID(), TenantContext.tenantId(),
-                customerId, subject, content, "PENDING_AI", Instant.now().toString());
-        inquiryMapper.save(inquiry);
+        InquiryView inquiry = createPending(TenantContext.tenantId(), request.customerId(), request.subject(),
+                request.content(), "MANUAL", "", TenantContext.userId());
         if (!request.streamAnalysisRequested()) {
             inquiryEventPublisher.publishCreated(inquiry);
         }
+        return inquiry;
+    }
+
+    InquiryView createFromChannel(String tenantId, String customerId, String subject, String content,
+                                  String sourceChannel, String externalId) {
+        InquiryView inquiry = createPending(tenantId, customerId, subject, content, sourceChannel, externalId, "");
+        inquiryEventPublisher.publishCreated(inquiry);
         return inquiry;
     }
 
@@ -56,6 +59,16 @@ public class InquiryService {
         }
         return inquiryMapper.findByTenantIdAndId(TenantContext.tenantId(), id)
                 .map(item -> inquiryMapper.save(new InquiryView(item.id(), item.tenantId(), item.customerId(),
-                        item.subject(), item.content(), status, item.createdAt())));
+                        item.subject(), item.content(), status, item.sourceChannel(), item.externalId(), item.ownerId(),
+                        item.nextActionDue(), item.createdAt())));
+    }
+
+    private InquiryView createPending(String tenantId, String customerId, String subject, String content,
+                                      String sourceChannel, String externalId, String ownerId) {
+        InquiryView inquiry = new InquiryView("inq-" + UUID.randomUUID(), tenantId,
+                TextSanitizer.required(customerId, "客户ID"), TextSanitizer.required(subject, "询盘主题"),
+                TextSanitizer.required(content, "询盘内容"), "PENDING_AI", sourceChannel, externalId, ownerId,
+                Instant.now().plusSeconds(4 * 3600).toString(), Instant.now().toString());
+        return inquiryMapper.save(inquiry);
     }
 }

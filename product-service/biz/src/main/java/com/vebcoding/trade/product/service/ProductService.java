@@ -5,6 +5,7 @@ import com.vebcoding.trade.common.TenantContext;
 import com.vebcoding.trade.common.TextSanitizer;
 import com.vebcoding.trade.common.RoleGuard;
 import com.vebcoding.trade.common.BulkImportResult;
+import com.vebcoding.trade.common.ImportJobRecorder;
 import com.vebcoding.trade.product.api.ProductView;
 import com.vebcoding.trade.product.api.UpsertProductRequest;
 import com.vebcoding.trade.product.mapper.ProductMapper;
@@ -20,10 +21,18 @@ import org.springframework.stereotype.Service;
 @Service
 public class ProductService {
     private final ProductMapper mapper;
-    public ProductService(ProductMapper mapper) { this.mapper = mapper; }
+    private final ImportJobRecorder importJobRecorder;
+    public ProductService(ProductMapper mapper, ImportJobRecorder importJobRecorder) {
+        this.mapper = mapper;
+        this.importJobRecorder = importJobRecorder;
+    }
 
     public List<ProductView> list(String keyword) {
         return mapper.findByTenantId(TenantContext.tenantId(), TextSanitizer.optional(keyword));
+    }
+    public List<ProductView> exportData() {
+        RoleGuard.requireAny("OWNER", "ADMIN");
+        return mapper.findByTenantId(TenantContext.tenantId(), "");
     }
     public ProductView get(String id) {
         return mapper.findByTenantIdAndId(TenantContext.tenantId(), id)
@@ -57,6 +66,7 @@ public class ProductService {
     public BulkImportResult bulkImport(List<UpsertProductRequest> rows) {
         RoleGuard.requireAny("OWNER", "ADMIN", "OPERATOR");
         if (rows == null || rows.isEmpty() || rows.size() > 500) throw new BusinessException("单次导入数量必须为1至500条");
+        String jobId = importJobRecorder.start("PRODUCT", rows.size());
         HashSet<String> skus = mapper.findByTenantId(TenantContext.tenantId(), "").stream()
                 .map(item -> item.sku().trim().toLowerCase(Locale.ROOT))
                 .collect(java.util.stream.Collectors.toCollection(HashSet::new));
@@ -70,6 +80,6 @@ public class ProductService {
             try { create(row); imported++; }
             catch (BusinessException ex) { errors.add("第" + (index + 1) + "行：" + ex.getMessage()); }
         }
-        return new BulkImportResult(rows.size(), imported, rows.size() - imported, List.copyOf(errors));
+        return importJobRecorder.complete(jobId, rows.size(), imported, errors);
     }
 }

@@ -3,6 +3,8 @@ package com.vebcoding.trade.customer.mapper;
 import com.vebcoding.trade.customer.api.CustomerView;
 import com.vebcoding.trade.customer.api.ContactView;
 import com.vebcoding.trade.customer.api.FollowupView;
+import com.vebcoding.trade.customer.service.AssignableOwner;
+import com.vebcoding.trade.customer.service.CustomerAccessProfile;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
@@ -26,35 +28,88 @@ public class JdbcCustomerMapper implements CustomerMapper {
     @Override
     public List<CustomerView> findByTenantId(String tenantId) {
         return jdbcTemplate.query("""
-                SELECT id, tenant_id, name, country, tag, created_at
-                FROM customers
-                WHERE tenant_id = ?
-                ORDER BY created_at DESC
-                """, (rs, rowNum) -> new CustomerView(
-                rs.getString("id"),
-                rs.getString("tenant_id"),
-                rs.getString("name"),
-                stringOrEmpty(rs, "country"),
-                stringOrEmpty(rs, "tag"),
-                timestampToIso(rs, "created_at")), tenantId);
+                SELECT customer.id, customer.tenant_id, customer.name, customer.country, customer.tag,
+                       customer.owner_id, COALESCE(owner.display_name, '') owner_name,
+                       customer.department_id, COALESCE(department.name, '') department_name, customer.created_at
+                FROM customers customer
+                LEFT JOIN users owner ON owner.tenant_id=customer.tenant_id AND owner.id=customer.owner_id
+                LEFT JOIN departments department ON department.tenant_id=customer.tenant_id
+                  AND department.id=customer.department_id
+                WHERE customer.tenant_id = ? ORDER BY customer.created_at DESC
+                """, (rs, rowNum) -> customer(rs), tenantId);
+    }
+
+    @Override
+    public List<CustomerView> findByTenantIdAndOwnerId(String tenantId, String ownerId) {
+        return jdbcTemplate.query("""
+                SELECT customer.id, customer.tenant_id, customer.name, customer.country, customer.tag,
+                       customer.owner_id, COALESCE(owner.display_name, '') owner_name,
+                       customer.department_id, COALESCE(department.name, '') department_name, customer.created_at
+                FROM customers customer
+                LEFT JOIN users owner ON owner.tenant_id=customer.tenant_id AND owner.id=customer.owner_id
+                LEFT JOIN departments department ON department.tenant_id=customer.tenant_id
+                  AND department.id=customer.department_id
+                WHERE customer.tenant_id=? AND customer.owner_id=? ORDER BY customer.created_at DESC
+                """, (rs, rowNum) -> customer(rs), tenantId, ownerId);
+    }
+
+    @Override
+    public List<CustomerView> findByTenantIdAndDepartmentId(String tenantId, String departmentId) {
+        return jdbcTemplate.query("""
+                SELECT customer.id, customer.tenant_id, customer.name, customer.country, customer.tag,
+                       customer.owner_id, COALESCE(owner.display_name, '') owner_name,
+                       customer.department_id, COALESCE(department.name, '') department_name, customer.created_at
+                FROM customers customer
+                LEFT JOIN users owner ON owner.tenant_id=customer.tenant_id AND owner.id=customer.owner_id
+                LEFT JOIN departments department ON department.tenant_id=customer.tenant_id
+                  AND department.id=customer.department_id
+                WHERE customer.tenant_id=? AND customer.department_id=? ORDER BY customer.created_at DESC
+                """, (rs, rowNum) -> customer(rs), tenantId, departmentId);
+    }
+
+    @Override
+    public CustomerAccessProfile findAccessProfile(String tenantId, String userId, String fallbackRole) {
+        return jdbcTemplate.query("""
+                SELECT id, role_code, data_scope, department_id FROM users
+                WHERE tenant_id=? AND id=? AND status='ACTIVE'
+                """, (rs, rowNum) -> new CustomerAccessProfile(rs.getString("id"), rs.getString("role_code"),
+                rs.getString("data_scope"), stringOrEmpty(rs, "department_id")), tenantId, userId).stream()
+                .findFirst().orElse(new CustomerAccessProfile(userId, fallbackRole,
+                        defaultScope(fallbackRole), ""));
+    }
+
+    @Override
+    public Optional<AssignableOwner> findAssignableOwner(String tenantId, String userId) {
+        return jdbcTemplate.query("""
+                SELECT user.id, user.display_name, user.department_id, COALESCE(department.name, '') department_name
+                FROM users user LEFT JOIN departments department
+                  ON department.tenant_id=user.tenant_id AND department.id=user.department_id
+                WHERE user.tenant_id=? AND user.id=? AND user.status='ACTIVE'
+                """, (rs, rowNum) -> new AssignableOwner(rs.getString("id"), rs.getString("display_name"),
+                stringOrEmpty(rs, "department_id"), rs.getString("department_name")), tenantId, userId)
+                .stream().findFirst();
     }
 
     @Override
     public CustomerView save(CustomerView customer) {
         Timestamp createdAt = isoToTimestamp(customer.createdAt());
         jdbcTemplate.update("""
-                INSERT INTO customers (id, tenant_id, name, country, tag, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO customers (id, tenant_id, name, country, tag, owner_id, department_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                   name = VALUES(name),
                   country = VALUES(country),
-                  tag = VALUES(tag)
+                  tag = VALUES(tag),
+                  owner_id = VALUES(owner_id),
+                  department_id = VALUES(department_id)
                 """,
                 customer.id(),
                 customer.tenantId(),
                 customer.name(),
                 blankToNull(customer.country()),
                 blankToNull(customer.tag()),
+                blankToNull(customer.ownerId()),
+                blankToNull(customer.departmentId()),
                 createdAt);
         return customer;
     }
@@ -63,11 +118,15 @@ public class JdbcCustomerMapper implements CustomerMapper {
     public Optional<CustomerView> findByTenantIdAndId(String tenantId, String id) {
         try {
             return Optional.ofNullable(jdbcTemplate.queryForObject("""
-                    SELECT id, tenant_id, name, country, tag, created_at FROM customers
-                    WHERE tenant_id = ? AND id = ?
-                    """, (rs, rowNum) -> new CustomerView(rs.getString("id"), rs.getString("tenant_id"),
-                    rs.getString("name"), stringOrEmpty(rs, "country"), stringOrEmpty(rs, "tag"),
-                    timestampToIso(rs, "created_at")), tenantId, id));
+                    SELECT customer.id, customer.tenant_id, customer.name, customer.country, customer.tag,
+                           customer.owner_id, COALESCE(owner.display_name, '') owner_name,
+                           customer.department_id, COALESCE(department.name, '') department_name, customer.created_at
+                    FROM customers customer
+                    LEFT JOIN users owner ON owner.tenant_id=customer.tenant_id AND owner.id=customer.owner_id
+                    LEFT JOIN departments department ON department.tenant_id=customer.tenant_id
+                      AND department.id=customer.department_id
+                    WHERE customer.tenant_id = ? AND customer.id = ?
+                    """, (rs, rowNum) -> customer(rs), tenantId, id));
         } catch (EmptyResultDataAccessException ex) {
             return Optional.empty();
         }
@@ -125,5 +184,18 @@ public class JdbcCustomerMapper implements CustomerMapper {
                 """, followup.id(), tenantId, followup.customerId(), followup.type(), followup.content(),
                 blankToNull(followup.operatorName()), isoToTimestamp(followup.createdAt()));
         return followup;
+    }
+
+    private CustomerView customer(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new CustomerView(rs.getString("id"), rs.getString("tenant_id"), rs.getString("name"),
+                stringOrEmpty(rs, "country"), stringOrEmpty(rs, "tag"), stringOrEmpty(rs, "owner_id"),
+                rs.getString("owner_name"), stringOrEmpty(rs, "department_id"), rs.getString("department_name"),
+                timestampToIso(rs, "created_at"));
+    }
+
+    private String defaultScope(String role) {
+        if ("OWNER".equalsIgnoreCase(role) || "ADMIN".equalsIgnoreCase(role)) return "ALL";
+        if ("OPERATOR".equalsIgnoreCase(role)) return "DEPARTMENT";
+        return "SELF";
     }
 }

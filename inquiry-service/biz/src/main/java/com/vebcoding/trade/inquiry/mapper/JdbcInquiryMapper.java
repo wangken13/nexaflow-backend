@@ -9,6 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import static com.vebcoding.trade.common.JdbcValueSupport.isoToTimestamp;
+import static com.vebcoding.trade.common.JdbcValueSupport.stringOrEmpty;
 import static com.vebcoding.trade.common.JdbcValueSupport.timestampToIso;
 
 @Repository
@@ -22,7 +23,8 @@ public class JdbcInquiryMapper implements InquiryMapper {
     @Override
     public List<InquiryView> findByTenantId(String tenantId) {
         return jdbcTemplate.query("""
-                SELECT id, tenant_id, customer_id, subject, content, status, created_at
+                SELECT id, tenant_id, customer_id, subject, content, status, source_channel, external_id,
+                       owner_id, next_action_due, created_at
                 FROM inquiries
                 WHERE tenant_id = ?
                 ORDER BY created_at DESC
@@ -33,6 +35,10 @@ public class JdbcInquiryMapper implements InquiryMapper {
                 rs.getString("subject"),
                 rs.getString("content"),
                 rs.getString("status"),
+                stringOrEmpty(rs, "source_channel"),
+                stringOrEmpty(rs, "external_id"),
+                stringOrEmpty(rs, "owner_id"),
+                timestampToIso(rs, "next_action_due"),
                 timestampToIso(rs, "created_at")), tenantId);
     }
 
@@ -40,13 +46,19 @@ public class JdbcInquiryMapper implements InquiryMapper {
     public InquiryView save(InquiryView inquiry) {
         Timestamp createdAt = isoToTimestamp(inquiry.createdAt());
         jdbcTemplate.update("""
-                INSERT INTO inquiries (id, tenant_id, customer_id, subject, content, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO inquiries
+                  (id, tenant_id, customer_id, subject, content, status, source_channel, external_id,
+                   owner_id, next_action_due, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON DUPLICATE KEY UPDATE
                   customer_id = VALUES(customer_id),
                   subject = VALUES(subject),
                   content = VALUES(content),
-                  status = VALUES(status)
+                  status = VALUES(status),
+                  source_channel = VALUES(source_channel),
+                  external_id = VALUES(external_id),
+                  owner_id = VALUES(owner_id),
+                  next_action_due = VALUES(next_action_due)
                 """,
                 inquiry.id(),
                 inquiry.tenantId(),
@@ -54,6 +66,10 @@ public class JdbcInquiryMapper implements InquiryMapper {
                 inquiry.subject(),
                 inquiry.content(),
                 inquiry.status(),
+                inquiry.sourceChannel(),
+                inquiry.externalId(),
+                inquiry.ownerId(),
+                isoToTimestamp(inquiry.nextActionDue()),
                 createdAt);
         return inquiry;
     }
@@ -62,7 +78,8 @@ public class JdbcInquiryMapper implements InquiryMapper {
     public Optional<InquiryView> findByTenantIdAndId(String tenantId, String id) {
         try {
             return Optional.ofNullable(jdbcTemplate.queryForObject("""
-                    SELECT id, tenant_id, customer_id, subject, content, status, created_at
+                    SELECT id, tenant_id, customer_id, subject, content, status, source_channel, external_id,
+                           owner_id, next_action_due, created_at
                     FROM inquiries
                     WHERE tenant_id = ? AND id = ?
                     """, (rs, rowNum) -> new InquiryView(
@@ -72,6 +89,10 @@ public class JdbcInquiryMapper implements InquiryMapper {
                     rs.getString("subject"),
                     rs.getString("content"),
                     rs.getString("status"),
+                    stringOrEmpty(rs, "source_channel"),
+                    stringOrEmpty(rs, "external_id"),
+                    stringOrEmpty(rs, "owner_id"),
+                    timestampToIso(rs, "next_action_due"),
                     timestampToIso(rs, "created_at")), tenantId, id));
         } catch (EmptyResultDataAccessException ex) {
             return Optional.empty();

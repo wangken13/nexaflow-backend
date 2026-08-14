@@ -7,6 +7,7 @@ import com.vebcoding.trade.common.BusinessException;
 import com.vebcoding.trade.common.TenantContext;
 import com.vebcoding.trade.quotation.api.CreateQuotationRequest;
 import com.vebcoding.trade.quotation.api.QuotationItemRequest;
+import com.vebcoding.trade.quotation.api.UpsertApprovalRuleRequest;
 import com.vebcoding.trade.quotation.mapper.InMemoryQuotationMapper;
 import com.vebcoding.trade.quotation.service.QuotationService;
 import java.math.BigDecimal;
@@ -73,12 +74,36 @@ class QuotationServiceTest {
     }
 
     @Test
-    void quotationRejectsSkippedApproval() {
+    void quotationWithoutMatchingRuleCanBeSentDirectly() {
         QuotationService service = new QuotationService(new InMemoryQuotationMapper());
         var quotation = service.create(new CreateQuotationRequest("cus-001", "Mug", 100, BigDecimal.ONE));
 
-        assertThatThrownBy(() -> service.updateStatus(quotation.id(), "SENT"))
-                .isInstanceOf(BusinessException.class);
+        assertThat(service.updateStatus(quotation.id(), "SENT").status()).isEqualTo("SENT");
+    }
+
+    @Test
+    void matchingAmountRuleAutomaticallySubmitsQuotationForApproval() {
+        QuotationService service = new QuotationService(new InMemoryQuotationMapper());
+        service.createApprovalRule(new UpsertApprovalRuleRequest(
+                "大额报价审批", "AMOUNT_THRESHOLD", BigDecimal.valueOf(1000), "", true));
+
+        var quotation = service.create(new CreateQuotationRequest(
+                "cus-001", "Generator", 3, BigDecimal.valueOf(500)));
+
+        assertThat(quotation.status()).isEqualTo("PENDING_APPROVAL");
+        assertThat(quotation.approvalRequired()).isTrue();
+        assertThat(quotation.approvalReason()).contains("大额报价审批");
+        assertThat(service.approvals(quotation.id())).extracting("action").containsExactly("AUTO_SUBMITTED");
+    }
+
+    @Test
+    void approvalRuleRequiresValidCondition() {
+        QuotationService service = new QuotationService(new InMemoryQuotationMapper());
+
+        assertThatThrownBy(() -> service.createApprovalRule(new UpsertApprovalRuleRequest(
+                "重点客户审批", "VIP_CUSTOMER", null, "", true)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("请填写审批规则条件");
     }
 
     @Test

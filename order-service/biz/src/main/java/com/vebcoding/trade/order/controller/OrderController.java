@@ -28,6 +28,11 @@ public class OrderController {
         return ApiResponse.ok(orderService.list());
     }
 
+    @PostMapping("/export")
+    public ApiResponse<List<OrderView>> exportData() {
+        return ApiResponse.ok(orderService.exportData());
+    }
+
     @GetMapping("/exceptions")
     public ApiResponse<List<OrderView>> exceptions() {
         return ApiResponse.ok(orderService.exceptions());

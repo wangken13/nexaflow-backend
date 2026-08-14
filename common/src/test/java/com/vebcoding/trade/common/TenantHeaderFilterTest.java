@@ -31,6 +31,19 @@ class TenantHeaderFilterTest {
     }
 
     @Test
+    void signedInboundChannelEndpointCanReachItsOwnAuthenticationLayer() throws Exception {
+        TenantHeaderFilter filter = new TenantHeaderFilter(SECRET);
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/inquiry/inbound/key-1");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        AtomicBoolean forwarded = new AtomicBoolean();
+
+        filter.doFilter(request, response, (currentRequest, currentResponse) -> forwarded.set(true));
+
+        assertThat(forwarded).isTrue();
+        assertThat(response.getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void spoofedIdentityHeadersWithoutJwtAreRejected() throws Exception {
         TenantHeaderFilter filter = new TenantHeaderFilter(SECRET);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/customer/customers");

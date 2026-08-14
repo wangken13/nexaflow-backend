@@ -107,6 +107,8 @@ services:
       MYSQL_HOST: mysql
       MYSQL_USER: "${MYSQL_APP_USER:?MYSQL_APP_USER must be set}"
       MYSQL_PASSWORD: "${MYSQL_APP_PASSWORD:?MYSQL_APP_PASSWORD must be set}"
+      BILLING_CHECKOUT_BASE_URL: "${BILLING_CHECKOUT_BASE_URL:-}"
+      BILLING_WEBHOOK_SECRET: "${BILLING_WEBHOOK_SECRET:-}"
     expose:
       - "18102"
     depends_on: [mysql, nacos]
@@ -129,7 +131,9 @@ services:
   inquiry-service:
     profiles: ["app"]
     build: ../inquiry-service/biz
-    environment: *business-env
+    environment:
+      <<: *business-env
+      INTEGRATION_MASTER_KEY: "${INTEGRATION_MASTER_KEY:?INTEGRATION_MASTER_KEY must be at least 32 random characters}"
     expose:
       - "18104"
     depends_on: [mysql, rabbitmq, nacos]

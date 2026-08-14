@@ -65,6 +65,24 @@ class JwtGatewayFilterTest {
     }
 
     @Test
+    void inboundChannelPathDoesNotAcceptSpoofedUserIdentity() {
+        JwtGatewayFilter filter = filter();
+        AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
+        var exchange = MockServerWebExchange.from(MockServerHttpRequest.post("/api/inquiry/inbound/key-1")
+                .header("X-User-Id", "spoofed-user")
+                .header("X-Tenant-Id", "spoofed-tenant")
+                .build());
+
+        filter.filter(exchange, current -> {
+            forwarded.set(current.getRequest());
+            return current.getResponse().setComplete();
+        }).block();
+
+        assertThat(forwarded.get().getHeaders().getFirst("X-User-Id")).isNull();
+        assertThat(forwarded.get().getHeaders().getFirst("X-Tenant-Id")).isNull();
+    }
+
+    @Test
     void invalidTokenIsRejectedBeforeRouteForwarding() {
         JwtGatewayFilter filter = filter();
         var exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/customer/customers")

@@ -69,7 +69,9 @@ public class TenantHeaderFilter extends OncePerRequestFilter {
 
     private boolean isPublicPath(String path) {
         return path.equals("/auth/captcha") || path.equals("/auth/login") || path.equals("/auth/refresh") || path.equals("/auth/register") || path.equals("/auth/sms-codes")
-                || path.equals("/auth/sms-login") || path.startsWith("/auth/wechat/") || path.startsWith("/actuator/health");
+                || path.equals("/auth/sms-login") || path.startsWith("/auth/wechat/")
+                || path.startsWith("/inquiry/inbound/") || path.equals("/tenant/billing/callback")
+                || path.startsWith("/actuator/health");
     }
 
     private boolean validIdentity(String tenantId, String userId, String role) {

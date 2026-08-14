@@ -36,6 +36,11 @@ public class OrderService {
         return orderMapper.findByTenantId(TenantContext.tenantId());
     }
 
+    public List<OrderView> exportData() {
+        RoleGuard.requireAny("OWNER", "ADMIN");
+        return orderMapper.findByTenantId(TenantContext.tenantId());
+    }
+
     public List<OrderView> exceptions() {
         return orderMapper.findByTenantId(TenantContext.tenantId()).stream().filter(OrderView::risk).toList();
     }
