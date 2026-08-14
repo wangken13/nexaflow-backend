@@ -6,6 +6,8 @@ backend_dir=$(CDPATH= cd -- "$infra_dir/.." && pwd)
 frontend_dir=$(CDPATH= cd -- "$backend_dir/../tradeflow-ai-frontend" && pwd)
 compose_file="$infra_dir/docker-compose.prod.yml"
 env_file="${ENV_FILE:-$infra_dir/.env.prod}"
+release_tag="${IMAGE_TAG:-$(git -C "$backend_dir" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)}"
+export IMAGE_TAG="$release_tag"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "Docker is required." >&2
@@ -93,4 +95,5 @@ if [ "$attempt" -eq 30 ]; then
 fi
 
 compose ps
+echo "Release image tag: $release_tag"
 echo "Deployment completed. Readiness probe: http://127.0.0.1:$http_port/readyz"
