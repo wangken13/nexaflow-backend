@@ -65,6 +65,21 @@ class JwtGatewayFilterTest {
     }
 
     @Test
+    void readinessPathDoesNotRequireAuthentication() {
+        JwtGatewayFilter filter = filter();
+        AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
+        var exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/readyz").build());
+
+        filter.filter(exchange, current -> {
+            forwarded.set(current.getRequest());
+            return current.getResponse().setComplete();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(exchange.getResponse().getStatusCode()).isNotEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
     void inboundChannelPathDoesNotAcceptSpoofedUserIdentity() {
         JwtGatewayFilter filter = filter();
         AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();

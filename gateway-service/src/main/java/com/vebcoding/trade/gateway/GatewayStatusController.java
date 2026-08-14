@@ -8,6 +8,13 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class GatewayStatusController {
+    @GetMapping("/readyz")
+    public ApiResponse<Map<String, String>> readiness() {
+        return ApiResponse.ok(Map.of(
+                "service", "gateway-service",
+                "status", "UP"));
+    }
+
     @GetMapping("/")
     public ApiResponse<Map<String, Object>> index() {
         return ApiResponse.ok(Map.of(

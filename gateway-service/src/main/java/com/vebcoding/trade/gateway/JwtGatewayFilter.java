@@ -22,7 +22,7 @@ import reactor.core.publisher.Mono;
 public class JwtGatewayFilter implements GlobalFilter, Ordered {
     private static final List<String> PUBLIC_PATHS = List.of(
             "/api/auth/captcha", "/api/auth/login", "/api/auth/refresh", "/api/auth/register", "/api/auth/sms-codes", "/api/auth/sms-login",
-            "/api/auth/wechat/", "/api/inquiry/inbound/", "/api/tenant/billing/callback", "/actuator/health");
+            "/api/auth/wechat/", "/api/inquiry/inbound/", "/api/tenant/billing/callback", "/actuator/health", "/readyz");
 
     @Value("${JWT_SECRET}")
     private String secret;
