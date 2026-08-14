@@ -13,6 +13,7 @@ import com.vebcoding.trade.customer.service.CustomerService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import java.util.List;
 
 class CustomerServiceTest {
     @BeforeEach
@@ -58,5 +59,18 @@ class CustomerServiceTest {
         var detail = service.detail(customer.id());
         assertThat(detail.contacts()).singleElement().satisfies(contact -> assertThat(contact.primary()).isTrue());
         assertThat(detail.timeline()).singleElement().satisfies(item -> assertThat(item.type()).isEqualTo("EMAIL"));
+    }
+
+    @Test
+    void bulkImportSkipsDuplicateAndInvalidCustomers() {
+        CustomerService service = new CustomerService(new InMemoryCustomerMapper());
+        var result = service.bulkImport(List.of(
+                new CreateCustomerRequest("Acme", "US", "vip"),
+                new CreateCustomerRequest("Acme", "US", "vip"),
+                new CreateCustomerRequest("", "DE", "new")));
+
+        assertThat(result.imported()).isEqualTo(1);
+        assertThat(result.skipped()).isEqualTo(2);
+        assertThat(result.errors()).hasSize(2);
     }
 }

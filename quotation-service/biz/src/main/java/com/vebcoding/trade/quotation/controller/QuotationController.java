@@ -3,6 +3,9 @@ package com.vebcoding.trade.quotation.controller;
 import com.vebcoding.trade.common.ApiResponse;
 import com.vebcoding.trade.quotation.api.CreateQuotationRequest;
 import com.vebcoding.trade.quotation.api.QuotationView;
+import com.vebcoding.trade.quotation.api.QuotationApprovalRequest;
+import com.vebcoding.trade.quotation.api.QuotationApprovalView;
+import jakarta.validation.Valid;
 import com.vebcoding.trade.quotation.service.QuotationService;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -40,5 +43,28 @@ public class QuotationController {
     @PatchMapping("/{id}/status/{status}")
     public ApiResponse<QuotationView> updateStatus(@PathVariable String id, @PathVariable String status) {
         return ApiResponse.ok(quotationService.updateStatus(id, status));
+    }
+
+    @GetMapping("/{id}/approvals")
+    public ApiResponse<List<QuotationApprovalView>> approvals(@PathVariable String id) {
+        return ApiResponse.ok(quotationService.approvals(id));
+    }
+
+    @PostMapping("/{id}/submit-approval")
+    public ApiResponse<QuotationView> submitApproval(@PathVariable String id,
+            @Valid @RequestBody QuotationApprovalRequest request) {
+        return ApiResponse.ok(quotationService.submitApproval(id, request.comment()));
+    }
+
+    @PostMapping("/{id}/approve")
+    public ApiResponse<QuotationView> approve(@PathVariable String id,
+            @Valid @RequestBody QuotationApprovalRequest request) {
+        return ApiResponse.ok(quotationService.decideApproval(id, true, request.comment()));
+    }
+
+    @PostMapping("/{id}/reject")
+    public ApiResponse<QuotationView> reject(@PathVariable String id,
+            @Valid @RequestBody QuotationApprovalRequest request) {
+        return ApiResponse.ok(quotationService.decideApproval(id, false, request.comment()));
     }
 }

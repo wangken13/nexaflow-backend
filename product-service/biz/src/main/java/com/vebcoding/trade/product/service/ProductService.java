@@ -4,6 +4,7 @@ import com.vebcoding.trade.common.BusinessException;
 import com.vebcoding.trade.common.TenantContext;
 import com.vebcoding.trade.common.TextSanitizer;
 import com.vebcoding.trade.common.RoleGuard;
+import com.vebcoding.trade.common.BulkImportResult;
 import com.vebcoding.trade.product.api.ProductView;
 import com.vebcoding.trade.product.api.UpsertProductRequest;
 import com.vebcoding.trade.product.mapper.ProductMapper;
@@ -11,6 +12,9 @@ import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -48,5 +52,24 @@ public class ProductService {
         if (request.moq() <= 0) throw new BusinessException("最小起订量必须大于0");
         return new ProductView(id, TenantContext.tenantId(), sku, name, TextSanitizer.optional(request.specification()),
                 currency, price, request.moq(), request.active(), createdAt);
+    }
+
+    public BulkImportResult bulkImport(List<UpsertProductRequest> rows) {
+        RoleGuard.requireAny("OWNER", "ADMIN", "OPERATOR");
+        if (rows == null || rows.isEmpty() || rows.size() > 500) throw new BusinessException("单次导入数量必须为1至500条");
+        HashSet<String> skus = mapper.findByTenantId(TenantContext.tenantId(), "").stream()
+                .map(item -> item.sku().trim().toLowerCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toCollection(HashSet::new));
+        List<String> errors = new ArrayList<>();
+        int imported = 0;
+        for (int index = 0; index < rows.size(); index++) {
+            UpsertProductRequest row = rows.get(index);
+            String sku = TextSanitizer.optional(row.sku());
+            if (sku.isBlank()) { errors.add("第" + (index + 1) + "行：SKU不能为空"); continue; }
+            if (!skus.add(sku.toLowerCase(Locale.ROOT))) { errors.add("第" + (index + 1) + "行：SKU重复"); continue; }
+            try { create(row); imported++; }
+            catch (BusinessException ex) { errors.add("第" + (index + 1) + "行：" + ex.getMessage()); }
+        }
+        return new BulkImportResult(rows.size(), imported, rows.size() - imported, List.copyOf(errors));
     }
 }

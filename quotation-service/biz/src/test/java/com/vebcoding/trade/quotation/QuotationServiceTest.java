@@ -80,4 +80,27 @@ class QuotationServiceTest {
         assertThatThrownBy(() -> service.updateStatus(quotation.id(), "SENT"))
                 .isInstanceOf(BusinessException.class);
     }
+
+    @Test
+    void approvalWorkflowPersistsOperatorComments() {
+        QuotationService service = new QuotationService(new InMemoryQuotationMapper());
+        var quotation = service.create(new CreateQuotationRequest("cus-001", "Mug", 100, BigDecimal.ONE));
+
+        service.submitApproval(quotation.id(), "毛利率符合要求");
+        service.decideApproval(quotation.id(), true, "同意发送客户");
+
+        assertThat(service.approvals(quotation.id())).extracting("action")
+                .containsExactly("SUBMITTED", "APPROVED");
+        assertThat(service.approvals(quotation.id())).extracting("operatorId").containsOnly("admin");
+    }
+
+    @Test
+    void rejectionRequiresComment() {
+        QuotationService service = new QuotationService(new InMemoryQuotationMapper());
+        var quotation = service.create(new CreateQuotationRequest("cus-001", "Mug", 100, BigDecimal.ONE));
+        service.submitApproval(quotation.id(), "");
+
+        assertThatThrownBy(() -> service.decideApproval(quotation.id(), false, " "))
+                .isInstanceOf(BusinessException.class).hasMessage("驳回报价时必须填写原因");
+    }
 }

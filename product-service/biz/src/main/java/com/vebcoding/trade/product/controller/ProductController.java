@@ -3,6 +3,9 @@ package com.vebcoding.trade.product.controller;
 import com.vebcoding.trade.common.ApiResponse;
 import com.vebcoding.trade.product.api.ProductView;
 import com.vebcoding.trade.product.api.UpsertProductRequest;
+import com.vebcoding.trade.product.api.ProductBulkImportRequest;
+import com.vebcoding.trade.common.BulkImportResult;
+import jakarta.validation.Valid;
 import com.vebcoding.trade.product.service.ProductService;
 import java.util.List;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -25,4 +28,5 @@ public class ProductController {
     @PostMapping public ApiResponse<ProductView> create(@RequestBody UpsertProductRequest request) { return ApiResponse.ok(service.create(request)); }
     @PutMapping("/{id}") public ApiResponse<ProductView> update(@PathVariable String id, @RequestBody UpsertProductRequest request) { return ApiResponse.ok(service.update(id, request)); }
     @DeleteMapping("/{id}") public ApiResponse<Void> delete(@PathVariable String id) { service.delete(id); return ApiResponse.ok(null); }
+    @PostMapping("/import") public ApiResponse<BulkImportResult> bulkImport(@Valid @RequestBody ProductBulkImportRequest request) { return ApiResponse.ok(service.bulkImport(request.rows())); }
 }

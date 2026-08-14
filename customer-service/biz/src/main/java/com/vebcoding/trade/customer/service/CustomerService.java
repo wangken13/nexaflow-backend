@@ -4,6 +4,7 @@ import com.vebcoding.trade.common.TenantContext;
 import com.vebcoding.trade.common.BusinessException;
 import com.vebcoding.trade.common.TextSanitizer;
 import com.vebcoding.trade.common.RoleGuard;
+import com.vebcoding.trade.common.BulkImportResult;
 import com.vebcoding.trade.customer.api.CreateCustomerRequest;
 import com.vebcoding.trade.customer.api.CustomerView;
 import com.vebcoding.trade.customer.api.ContactView;
@@ -15,6 +16,9 @@ import com.vebcoding.trade.customer.mapper.CustomerMapper;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Locale;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -86,5 +90,24 @@ public class CustomerService {
 
     public List<String> tags() {
         return List.of("new", "vip", "at-risk", "quoted");
+    }
+
+    public BulkImportResult bulkImport(List<CreateCustomerRequest> rows) {
+        RoleGuard.requireAny("OWNER", "ADMIN", "SALES");
+        if (rows == null || rows.isEmpty() || rows.size() > 500) throw new BusinessException("单次导入数量必须为1至500条");
+        HashSet<String> names = customerMapper.findByTenantId(TenantContext.tenantId()).stream()
+                .map(item -> item.name().trim().toLowerCase(Locale.ROOT))
+                .collect(java.util.stream.Collectors.toCollection(HashSet::new));
+        List<String> errors = new ArrayList<>();
+        int imported = 0;
+        for (int index = 0; index < rows.size(); index++) {
+            CreateCustomerRequest row = rows.get(index);
+            String name = TextSanitizer.optional(row.name());
+            if (name.isBlank()) { errors.add("第" + (index + 1) + "行：客户名称不能为空"); continue; }
+            if (!names.add(name.toLowerCase(Locale.ROOT))) { errors.add("第" + (index + 1) + "行：客户名称重复"); continue; }
+            create(row);
+            imported++;
+        }
+        return new BulkImportResult(rows.size(), imported, rows.size() - imported, List.copyOf(errors));
     }
 }

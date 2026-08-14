@@ -7,6 +7,7 @@ import com.vebcoding.trade.quotation.api.CreateQuotationRequest;
 import com.vebcoding.trade.quotation.api.QuotationItemRequest;
 import com.vebcoding.trade.quotation.api.QuotationItemView;
 import com.vebcoding.trade.quotation.api.QuotationView;
+import com.vebcoding.trade.quotation.api.QuotationApprovalView;
 import com.vebcoding.trade.quotation.mapper.QuotationMapper;
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -37,6 +38,7 @@ public class QuotationService {
     public List<QuotationView> list() { return quotationMapper.findByTenantId(TenantContext.tenantId()); }
     public QuotationView get(String id) { return quotationMapper.findByTenantIdAndId(TenantContext.tenantId(), id)
             .orElseThrow(() -> BusinessException.notFound("报价单不存在")); }
+    public List<QuotationApprovalView> approvals(String id) { get(id); return quotationMapper.findApprovals(TenantContext.tenantId(), id); }
 
     @Transactional
     public QuotationView create(CreateQuotationRequest request) {
@@ -75,6 +77,31 @@ public class QuotationService {
                 current.quotationNo(), current.productName(), current.quantity(), current.unitPrice(),
                 current.currency(), current.tradeTerm(), current.destinationPort(), current.freight(),
                 current.totalAmount(), current.validUntil(), current.notes(), normalized, current.items(), current.createdAt()));
+    }
+
+    @Transactional
+    public QuotationView submitApproval(String id, String comment) {
+        RoleGuard.requireAny("OWNER", "ADMIN", "SALES");
+        QuotationView updated = updateStatus(id, "PENDING_APPROVAL");
+        saveApproval(id, "SUBMITTED", comment);
+        return updated;
+    }
+
+    @Transactional
+    public QuotationView decideApproval(String id, boolean approved, String comment) {
+        RoleGuard.requireAny("OWNER", "ADMIN");
+        if (!approved && TextSanitizer.optional(comment).isBlank()) {
+            throw new BusinessException("驳回报价时必须填写原因");
+        }
+        QuotationView updated = updateStatus(id, approved ? "APPROVED" : "REJECTED");
+        saveApproval(id, approved ? "APPROVED" : "REJECTED", comment);
+        return updated;
+    }
+
+    private void saveApproval(String quotationId, String action, String comment) {
+        quotationMapper.saveApproval(TenantContext.tenantId(), new QuotationApprovalView(
+                "apr-" + UUID.randomUUID(), quotationId, action, TextSanitizer.optional(comment),
+                TenantContext.userId(), Instant.now().toString()));
     }
 
     private QuotationItemView toItem(QuotationItemRequest request) {

@@ -7,6 +7,7 @@ import static com.vebcoding.trade.common.JdbcValueSupport.timestampToIso;
 
 import com.vebcoding.trade.quotation.api.QuotationItemView;
 import com.vebcoding.trade.quotation.api.QuotationView;
+import com.vebcoding.trade.quotation.api.QuotationApprovalView;
 import java.math.BigDecimal;
 import java.sql.Date;
 import java.time.LocalDate;
@@ -71,6 +72,27 @@ public class JdbcQuotationMapper implements QuotationMapper {
                     item.amount(), sort++);
         }
         return quotation;
+    }
+
+    @Override
+    public List<QuotationApprovalView> findApprovals(String tenantId, String quotationId) {
+        return jdbcTemplate.query("""
+                SELECT id, quotation_id, action, comment_text, operator_id, created_at
+                FROM quotation_approval_records WHERE tenant_id=? AND quotation_id=? ORDER BY created_at DESC
+                """, (rs, rowNum) -> new QuotationApprovalView(rs.getString("id"), rs.getString("quotation_id"),
+                rs.getString("action"), stringOrEmpty(rs, "comment_text"), rs.getString("operator_id"),
+                rs.getTimestamp("created_at").toInstant().toString()), tenantId, quotationId);
+    }
+
+    @Override
+    public QuotationApprovalView saveApproval(String tenantId, QuotationApprovalView approval) {
+        jdbcTemplate.update("""
+                INSERT INTO quotation_approval_records
+                  (id, tenant_id, quotation_id, action, comment_text, operator_id, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, approval.id(), tenantId, approval.quotationId(), approval.action(),
+                blankToNull(approval.comment()), approval.operatorId(), isoToTimestamp(approval.createdAt()));
+        return approval;
     }
 
     private QuotationView mapHeader(java.sql.ResultSet rs) throws java.sql.SQLException {

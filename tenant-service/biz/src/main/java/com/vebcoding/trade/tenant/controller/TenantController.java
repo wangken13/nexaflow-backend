@@ -5,6 +5,11 @@ import com.vebcoding.trade.tenant.api.TenantProfileResponse;
 import com.vebcoding.trade.tenant.api.AuditLogView;
 import com.vebcoding.trade.tenant.api.CreateMemberRequest;
 import com.vebcoding.trade.tenant.api.MemberView;
+import com.vebcoding.trade.tenant.api.ChannelConfigView;
+import com.vebcoding.trade.tenant.api.KnowledgeArticleView;
+import com.vebcoding.trade.tenant.api.SubscriptionView;
+import com.vebcoding.trade.tenant.api.UpsertChannelConfigRequest;
+import com.vebcoding.trade.tenant.api.UpsertKnowledgeArticleRequest;
 import com.vebcoding.trade.tenant.service.TenantService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -16,6 +21,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 
 @RestController
 @RequestMapping("/tenant")
@@ -56,5 +63,43 @@ public class TenantController {
             @RequestParam(defaultValue = "") String module,
             @RequestParam(defaultValue = "") String keyword) {
         return ApiResponse.ok(tenantService.auditLogs(module, keyword));
+    }
+
+    @GetMapping("/knowledge")
+    public ApiResponse<List<KnowledgeArticleView>> knowledgeArticles() {
+        return ApiResponse.ok(tenantService.knowledgeArticles());
+    }
+
+    @PostMapping("/knowledge")
+    public ApiResponse<KnowledgeArticleView> createKnowledgeArticle(
+            @Valid @RequestBody UpsertKnowledgeArticleRequest request) {
+        return ApiResponse.ok(tenantService.createKnowledgeArticle(request));
+    }
+
+    @PutMapping("/knowledge/{id}")
+    public ApiResponse<KnowledgeArticleView> updateKnowledgeArticle(
+            @PathVariable String id, @Valid @RequestBody UpsertKnowledgeArticleRequest request) {
+        return ApiResponse.ok(tenantService.updateKnowledgeArticle(id, request));
+    }
+
+    @DeleteMapping("/knowledge/{id}")
+    public ApiResponse<Void> deleteKnowledgeArticle(@PathVariable String id) {
+        tenantService.deleteKnowledgeArticle(id);
+        return ApiResponse.ok(null);
+    }
+
+    @GetMapping("/channels")
+    public ApiResponse<List<ChannelConfigView>> channels() {
+        return ApiResponse.ok(tenantService.channels());
+    }
+
+    @PutMapping("/channels")
+    public ApiResponse<ChannelConfigView> saveChannel(@Valid @RequestBody UpsertChannelConfigRequest request) {
+        return ApiResponse.ok(tenantService.saveChannel(request));
+    }
+
+    @GetMapping("/subscription")
+    public ApiResponse<SubscriptionView> subscription() {
+        return ApiResponse.ok(tenantService.subscription());
     }
 }

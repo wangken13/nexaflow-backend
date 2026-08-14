@@ -18,6 +18,7 @@ import com.vebcoding.trade.common.TenantContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import java.util.concurrent.atomic.AtomicReference;
 
 class AiControllerTest {
     @BeforeEach
@@ -83,5 +84,18 @@ class AiControllerTest {
         assertThat(response.data().provider()).isEqualTo("DeepSeek");
         assertThat(response.data().configured()).isTrue();
         assertThat(response.data().fallbackEnabled()).isTrue();
+    }
+
+    @Test
+    void analysisPromptIncludesTenantKnowledgeContext() {
+        AtomicReference<String> prompt = new AtomicReference<>();
+        AiProviderStrategy provider = value -> { prompt.set(value); return "模型分析"; };
+        AiService service = new AiService(provider, new InquiryClassifier(), new InquiryDraftFactory(),
+                new InMemoryAiAnalysisMapper(), content -> "[DELIVERY] 标准交期\n常规产品30天交付");
+
+        new AiController(service, mock(AiStreamingService.class))
+                .analyzeInquiry(new AnalyzeInquiryRequest("Please confirm lead time"));
+
+        assertThat(prompt.get()).contains("企业知识库", "常规产品30天交付", "Please confirm lead time");
     }
 }

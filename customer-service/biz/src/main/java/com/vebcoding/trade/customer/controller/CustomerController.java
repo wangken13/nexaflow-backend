@@ -8,6 +8,9 @@ import com.vebcoding.trade.customer.api.CreateContactRequest;
 import com.vebcoding.trade.customer.api.CreateFollowupRequest;
 import com.vebcoding.trade.customer.api.CustomerDetailView;
 import com.vebcoding.trade.customer.api.FollowupView;
+import com.vebcoding.trade.customer.api.CustomerBulkImportRequest;
+import com.vebcoding.trade.common.BulkImportResult;
+import jakarta.validation.Valid;
 import com.vebcoding.trade.customer.service.CustomerService;
 import java.util.List;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -67,5 +70,10 @@ public class CustomerController {
     @GetMapping("/tags")
     public ApiResponse<List<String>> tags() {
         return ApiResponse.ok(customerService.tags());
+    }
+
+    @PostMapping("/import")
+    public ApiResponse<BulkImportResult> bulkImport(@Valid @RequestBody CustomerBulkImportRequest request) {
+        return ApiResponse.ok(customerService.bulkImport(request.rows()));
     }
 }

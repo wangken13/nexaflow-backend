@@ -4,6 +4,9 @@ import com.vebcoding.trade.common.BusinessException;
 import com.vebcoding.trade.tenant.api.TenantProfileResponse;
 import com.vebcoding.trade.tenant.api.AuditLogView;
 import com.vebcoding.trade.tenant.api.MemberView;
+import com.vebcoding.trade.tenant.api.ChannelConfigView;
+import com.vebcoding.trade.tenant.api.KnowledgeArticleView;
+import com.vebcoding.trade.tenant.api.SubscriptionView;
 import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
@@ -104,9 +107,91 @@ public class JdbcTenantMapper implements TenantMapper {
         return auditLog;
     }
 
+    @Override
+    public List<KnowledgeArticleView> findKnowledgeArticles(String tenantId) {
+        return jdbcTemplate.query("""
+                SELECT id, tenant_id, title, category, content, active_flag, updated_by, created_at, updated_at
+                FROM knowledge_articles WHERE tenant_id=? ORDER BY updated_at DESC
+                """, (rs, rowNum) -> knowledge(rs), tenantId);
+    }
+
+    @Override
+    public Optional<KnowledgeArticleView> findKnowledgeArticle(String tenantId, String id) {
+        return jdbcTemplate.query("""
+                SELECT id, tenant_id, title, category, content, active_flag, updated_by, created_at, updated_at
+                FROM knowledge_articles WHERE tenant_id=? AND id=?
+                """, (rs, rowNum) -> knowledge(rs), tenantId, id).stream().findFirst();
+    }
+
+    @Override
+    public KnowledgeArticleView saveKnowledgeArticle(KnowledgeArticleView article) {
+        jdbcTemplate.update("""
+                INSERT INTO knowledge_articles
+                  (id, tenant_id, title, category, content, active_flag, updated_by, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE title=VALUES(title), category=VALUES(category), content=VALUES(content),
+                  active_flag=VALUES(active_flag), updated_by=VALUES(updated_by), updated_at=VALUES(updated_at)
+                """, article.id(), article.tenantId(), article.title(), article.category(), article.content(),
+                article.active(), article.updatedBy(), Timestamp.from(java.time.Instant.parse(article.createdAt())),
+                Timestamp.from(java.time.Instant.parse(article.updatedAt())));
+        return article;
+    }
+
+    @Override
+    public boolean deleteKnowledgeArticle(String tenantId, String id) {
+        return jdbcTemplate.update("DELETE FROM knowledge_articles WHERE tenant_id=? AND id=?", tenantId, id) == 1;
+    }
+
+    @Override
+    public List<ChannelConfigView> findChannelConfigs(String tenantId) {
+        return jdbcTemplate.query("""
+                SELECT id, channel_type, display_name, account_ref, enabled_flag, connection_status, updated_at
+                FROM channel_configs WHERE tenant_id=? ORDER BY channel_type
+                """, (rs, rowNum) -> new ChannelConfigView(rs.getString("id"), rs.getString("channel_type"),
+                rs.getString("display_name"), rs.getString("account_ref"), rs.getBoolean("enabled_flag"),
+                rs.getString("connection_status"), rs.getTimestamp("updated_at").toInstant().toString()), tenantId);
+    }
+
+    @Override
+    public ChannelConfigView saveChannelConfig(String tenantId, ChannelConfigView channel, String updatedBy) {
+        jdbcTemplate.update("""
+                INSERT INTO channel_configs
+                  (id, tenant_id, channel_type, display_name, account_ref, enabled_flag, connection_status, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ON DUPLICATE KEY UPDATE display_name=VALUES(display_name), account_ref=VALUES(account_ref),
+                  enabled_flag=VALUES(enabled_flag), connection_status=VALUES(connection_status),
+                  updated_by=VALUES(updated_by), updated_at=CURRENT_TIMESTAMP
+                """, channel.id(), tenantId, channel.channelType(), channel.displayName(), channel.accountRef(),
+                channel.enabled(), channel.connectionStatus(), updatedBy);
+        return findChannelConfigs(tenantId).stream()
+                .filter(item -> item.channelType().equals(channel.channelType())).findFirst().orElseThrow();
+    }
+
+    @Override
+    public SubscriptionView findSubscription(String tenantId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT t.plan_code, p.plan_name, p.monthly_price, p.member_limit, p.customer_limit,
+                       p.ai_credit_limit,
+                       (SELECT COUNT(*) FROM users u WHERE u.tenant_id=t.id AND u.status='ACTIVE') members_used,
+                       (SELECT COUNT(*) FROM customers c WHERE c.tenant_id=t.id) customers_used,
+                       (SELECT COUNT(*) FROM ai_analysis a WHERE a.tenant_id=t.id) ai_used
+                FROM tenants t JOIN plan_catalog p ON p.plan_code=t.plan_code WHERE t.id=?
+                """, (rs, rowNum) -> new SubscriptionView(rs.getString("plan_code"), rs.getString("plan_name"),
+                rs.getBigDecimal("monthly_price"), rs.getInt("members_used"), rs.getInt("member_limit"),
+                rs.getInt("customers_used"), rs.getInt("customer_limit"), rs.getInt("ai_used"),
+                rs.getInt("ai_credit_limit")), tenantId);
+    }
+
     private MemberView member(java.sql.ResultSet rs) throws java.sql.SQLException {
         return new MemberView(rs.getString("id"), rs.getString("tenant_id"), rs.getString("username"),
                 rs.getString("display_name"), rs.getString("email"), rs.getString("role_code"),
                 rs.getString("status"), rs.getTimestamp("created_at").toInstant().toString());
+    }
+
+    private KnowledgeArticleView knowledge(java.sql.ResultSet rs) throws java.sql.SQLException {
+        return new KnowledgeArticleView(rs.getString("id"), rs.getString("tenant_id"), rs.getString("title"),
+                rs.getString("category"), rs.getString("content"), rs.getBoolean("active_flag"),
+                rs.getString("updated_by"), rs.getTimestamp("created_at").toInstant().toString(),
+                rs.getTimestamp("updated_at").toInstant().toString());
     }
 }
