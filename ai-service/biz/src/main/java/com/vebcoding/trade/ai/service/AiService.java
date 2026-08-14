@@ -1,11 +1,13 @@
 package com.vebcoding.trade.ai.service;
 
 import com.vebcoding.trade.ai.api.InquiryAnalysis;
+import com.vebcoding.trade.ai.api.AiProviderStatus;
 import com.vebcoding.trade.ai.mapper.AiAnalysisMapper;
 import com.vebcoding.trade.common.TenantContext;
 import com.vebcoding.trade.common.RoleGuard;
 import java.util.List;
 import org.springframework.stereotype.Service;
+import reactor.core.publisher.Flux;
 
 @Service
 public class AiService {
@@ -27,6 +29,11 @@ public class AiService {
     }
 
     public InquiryAnalysis analyzeInquiry(String inquiryId, String content) {
+        AnalysisPlan plan = prepareAnalysis(content);
+        return completeAnalysis(inquiryId, plan, aiProviderStrategy.generate(plan.prompt()));
+    }
+
+    public AnalysisPlan prepareAnalysis(String content) {
         RoleGuard.requireAny("OWNER", "ADMIN", "SALES");
         String intent = inquiryClassifier.detectIntent(content);
         String urgency = inquiryClassifier.detectUrgency(content);
@@ -37,22 +44,35 @@ public class AiService {
                 客户原文：
                 %s
                 """.formatted(content);
+        return new AnalysisPlan(content, intent, urgency, prompt);
+    }
+
+    public Flux<String> streamAnalysis(AnalysisPlan plan) {
+        return aiProviderStrategy.stream(plan.prompt());
+    }
+
+    public InquiryAnalysis completeAnalysis(String inquiryId, AnalysisPlan plan, String generatedContent) {
         String modelSummary = inquiryDraftFactory.requirementSummary(
-                content,
-                aiProviderStrategy.generate(prompt),
-                intent,
-                urgency);
+                plan.content(), generatedContent, plan.intent(), plan.urgency());
         InquiryAnalysis analysis = new InquiryAnalysis(
-                intent,
-                urgency,
-                inquiryDraftFactory.nextActions(content, intent),
+                plan.intent(),
+                plan.urgency(),
+                inquiryDraftFactory.nextActions(plan.content(), plan.intent()),
                 modelSummary,
-                inquiryDraftFactory.replyDraft(content, intent),
-                inquiryDraftFactory.quotationDraft(content, intent));
+                inquiryDraftFactory.replyDraft(plan.content(), plan.intent()),
+                inquiryDraftFactory.quotationDraft(plan.content(), plan.intent()));
         return aiAnalysisMapper.save(inquiryId, analysis);
     }
 
     public List<InquiryAnalysis> history(String inquiryId) {
         return aiAnalysisMapper.findByInquiryId(TenantContext.tenantId(), inquiryId);
+    }
+
+    public AiProviderStatus providerStatus() {
+        RoleGuard.requireAny("OWNER", "ADMIN");
+        return aiProviderStrategy.status();
+    }
+
+    public record AnalysisPlan(String content, String intent, String urgency, String prompt) {
     }
 }

@@ -1,13 +1,16 @@
 package com.vebcoding.trade.ai;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 import com.vebcoding.trade.ai.api.AnalyzeInquiryRequest;
+import com.vebcoding.trade.ai.api.AiProviderStatus;
 import com.vebcoding.trade.ai.api.InquiryAnalysis;
 import com.vebcoding.trade.ai.controller.AiController;
 import com.vebcoding.trade.ai.mapper.InMemoryAiAnalysisMapper;
 import com.vebcoding.trade.ai.service.AiProviderStrategy;
 import com.vebcoding.trade.ai.service.AiService;
+import com.vebcoding.trade.ai.service.AiStreamingService;
 import com.vebcoding.trade.ai.service.InquiryClassifier;
 import com.vebcoding.trade.ai.service.InquiryDraftFactory;
 import com.vebcoding.trade.common.ApiResponse;
@@ -34,7 +37,7 @@ class AiControllerTest {
         AiProviderStrategy provider = prompt -> "本地分析";
         AiService service = new AiService(provider, new InquiryClassifier(), new InquiryDraftFactory(),
                 new InMemoryAiAnalysisMapper());
-        AiController controller = new AiController(service);
+        AiController controller = new AiController(service, mock(AiStreamingService.class));
 
         ApiResponse<InquiryAnalysis> response = controller.analyzeInquiry(new AnalyzeInquiryRequest("Please quote 500 pcs"));
 
@@ -48,7 +51,7 @@ class AiControllerTest {
         AiProviderStrategy provider = prompt -> "**销售建议：** 客户想学习 Java";
         AiService service = new AiService(provider, new InquiryClassifier(), new InquiryDraftFactory(),
                 new InMemoryAiAnalysisMapper());
-        AiController controller = new AiController(service);
+        AiController controller = new AiController(service, mock(AiStreamingService.class));
 
         ApiResponse<InquiryAnalysis> response = controller.analyzeInquiry(
                 new AnalyzeInquiryRequest("我想学习Java，应该怎么开始？"));
@@ -57,5 +60,28 @@ class AiControllerTest {
         assertThat(response.data().modelSummary()).doesNotContain("**");
         assertThat(response.data().quotationDraft()).contains("暂不生成");
         assertThat(response.data().nextActions()).contains("确认客户真实需求");
+    }
+
+    @Test
+    void providerStatusIsAvailableToTenantAdministrators() {
+        AiProviderStrategy provider = new AiProviderStrategy() {
+            @Override
+            public String generate(String prompt) {
+                return "本地分析";
+            }
+
+            @Override
+            public AiProviderStatus status() {
+                return new AiProviderStatus("DeepSeek", "deepseek-chat", true, true);
+            }
+        };
+        AiService service = new AiService(provider, new InquiryClassifier(), new InquiryDraftFactory(),
+                new InMemoryAiAnalysisMapper());
+
+        ApiResponse<AiProviderStatus> response = new AiController(service, mock(AiStreamingService.class)).providerStatus();
+
+        assertThat(response.data().provider()).isEqualTo("DeepSeek");
+        assertThat(response.data().configured()).isTrue();
+        assertThat(response.data().fallbackEnabled()).isTrue();
     }
 }

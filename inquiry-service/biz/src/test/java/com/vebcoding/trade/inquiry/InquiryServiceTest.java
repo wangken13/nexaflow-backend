@@ -49,4 +49,16 @@ class InquiryServiceTest {
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("询盘状态不合法");
     }
+
+    @Test
+    void streamModeDoesNotPublishDuplicateAsyncAnalysisEvent() {
+        AtomicReference<InquiryView> published = new AtomicReference<>();
+        InquiryService service = new InquiryService(new InMemoryInquiryMapper(), published::set);
+
+        InquiryView inquiry = service.create(new CreateInquiryRequest(
+                "cus-001", "Need quote", "500 pcs", "STREAM"));
+
+        assertThat(inquiry.status()).isEqualTo("PENDING_AI");
+        assertThat(published.get()).isNull();
+    }
 }

@@ -43,7 +43,9 @@ public class InquiryService {
         InquiryView inquiry = new InquiryView("inq-" + UUID.randomUUID(), TenantContext.tenantId(),
                 customerId, subject, content, "PENDING_AI", Instant.now().toString());
         inquiryMapper.save(inquiry);
-        inquiryEventPublisher.publishCreated(inquiry);
+        if (!request.streamAnalysisRequested()) {
+            inquiryEventPublisher.publishCreated(inquiry);
+        }
         return inquiry;
     }
 

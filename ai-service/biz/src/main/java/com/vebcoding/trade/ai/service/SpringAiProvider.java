@@ -1,91 +1,128 @@
 package com.vebcoding.trade.ai.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.net.URI;
+import com.vebcoding.trade.ai.api.AiProviderStatus;
 import java.net.http.HttpClient;
-import java.net.http.HttpTimeoutException;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.List;
-import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.openai.OpenAiChatModel;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Primary;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.client.RestClient;
+import reactor.core.publisher.Flux;
 
 @Component
 @Primary
 public class SpringAiProvider implements AiProviderStrategy {
+    private static final Logger log = LoggerFactory.getLogger(SpringAiProvider.class);
+
     private final LocalFallbackAiProvider fallbackAiProvider;
-    private final ObjectMapper objectMapper;
-    private final HttpClient httpClient;
+    private final ChatClient chatClient;
+    private final String model;
+    private final boolean configured;
 
-    @Value("${spring.ai.openai.api-key:}")
-    private String configuredApiKey;
-
-    @Value("${spring.ai.openai.base-url:https://api.deepseek.com}")
-    private String baseUrl;
-
-    @Value("${spring.ai.openai.chat.options.model:deepseek-chat}")
-    private String model;
-
-    public SpringAiProvider(LocalFallbackAiProvider fallbackAiProvider, ObjectMapper objectMapper) {
+    public SpringAiProvider(
+            LocalFallbackAiProvider fallbackAiProvider,
+            @Value("${spring.ai.openai.api-key:}") String configuredApiKey,
+            @Value("${spring.ai.openai.base-url:https://api.deepseek.com}") String baseUrl,
+            @Value("${spring.ai.openai.chat.options.model:deepseek-chat}") String model) {
         this.fallbackAiProvider = fallbackAiProvider;
-        this.objectMapper = objectMapper;
-        this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+        this.model = model;
+        String apiKey = configuredApiKey == null ? "" : configuredApiKey.trim();
+        this.configured = StringUtils.hasText(apiKey);
+        this.chatClient = configured ? createChatClient(apiKey, baseUrl, model) : null;
     }
 
     @Override
     public String generate(String prompt) {
-        String apiKey = resolveApiKey();
-        if (!StringUtils.hasText(apiKey)) {
+        if (!configured) {
             return fallbackAiProvider.generate(prompt);
         }
+
+        long startedAt = System.nanoTime();
         try {
-            Map<String, Object> body = Map.of(
-                    "model", model,
-                    "messages", List.of(Map.of("role", "user", "content", prompt)),
-                    "temperature", 0.3);
-            HttpRequest request = HttpRequest.newBuilder()
-                    .uri(URI.create(baseUrl.replaceAll("/+$", "") + "/chat/completions"))
-                    .timeout(Duration.ofSeconds(60))
-                    .header("Authorization", "Bearer " + apiKey)
-                    .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(objectMapper.writeValueAsString(body)))
-                    .build();
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                return "AI 调用失败，已降级为本地规则分析：HTTP " + response.statusCode();
+            String content = chatClient.prompt().user(prompt).call().content();
+            if (!StringUtils.hasText(content)) {
+                log.warn("AI model returned empty content, model={}", model);
+                return fallbackAiProvider.generate(prompt);
             }
-            JsonNode root = objectMapper.readTree(response.body());
-            JsonNode content = root.path("choices").path(0).path("message").path("content");
-            return content.isMissingNode() ? fallbackAiProvider.generate(prompt) : content.asText();
-        } catch (HttpTimeoutException ex) {
-            return "AI 模型响应超时，已降级为本地规则分析。";
-        } catch (java.net.ConnectException ex) {
-            return "无法连接 AI 模型服务，已降级为本地规则分析。";
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            return "AI 分析任务被中断，已降级为本地规则分析。";
-        } catch (Exception ex) {
-            return "AI 模型响应格式异常，已降级为本地规则分析。";
+            log.info("AI analysis completed, model={}, promptChars={}, elapsedMs={}", model, prompt.length(), elapsedMillis(startedAt));
+            return content;
+        } catch (RuntimeException ex) {
+            log.warn("AI analysis degraded, model={}, errorType={}, elapsedMs={}",
+                    model, ex.getClass().getSimpleName(), elapsedMillis(startedAt));
+            return fallbackAiProvider.generate(prompt);
         }
     }
 
-    private String resolveApiKey() {
-        if (StringUtils.hasText(configuredApiKey)) {
-            return configuredApiKey;
+    @Override
+    public Flux<String> stream(String prompt) {
+        if (!configured) {
+            return fallbackAiProvider.stream(prompt);
         }
-        String deepSeekApiKey = System.getenv("DEEPSEEK_API_KEY");
-        if (StringUtils.hasText(deepSeekApiKey)) {
-            return deepSeekApiKey;
-        }
-        String deepSeekApiKeyCompact = System.getenv("DEEPSEEK_APIKEY");
-        if (StringUtils.hasText(deepSeekApiKeyCompact)) {
-            return deepSeekApiKeyCompact;
-        }
-        return System.getenv("OPENAI_API_KEY");
+
+        return Flux.defer(() -> {
+            long startedAt = System.nanoTime();
+            return chatClient.prompt()
+                    .user(prompt)
+                    .stream()
+                    .content()
+                    .filter(StringUtils::hasText)
+                    .switchIfEmpty(fallbackAiProvider.stream(prompt))
+                    .doOnComplete(() -> log.info(
+                            "AI streaming analysis completed, model={}, promptChars={}, elapsedMs={}",
+                            model, prompt.length(), elapsedMillis(startedAt)))
+                    .onErrorResume(ex -> {
+                        log.warn("AI streaming analysis degraded, model={}, errorType={}, elapsedMs={}",
+                                model, ex.getClass().getSimpleName(), elapsedMillis(startedAt));
+                        return fallbackAiProvider.stream(prompt);
+                    });
+        });
+    }
+
+    @Override
+    public AiProviderStatus status() {
+        return new AiProviderStatus("DeepSeek", model, configured, true);
+    }
+
+    private ChatClient createChatClient(String apiKey, String baseUrl, String model) {
+        OpenAiApi openAiApi = OpenAiApi.builder()
+                .apiKey(apiKey)
+                .baseUrl(baseUrl.replaceAll("/+$", ""))
+                .completionsPath("/chat/completions")
+                .restClientBuilder(modelRestClient())
+                .build();
+        OpenAiChatOptions options = OpenAiChatOptions.builder()
+                .model(model)
+                .temperature(0.3)
+                .maxTokens(1_200)
+                .build();
+        OpenAiChatModel chatModel = OpenAiChatModel.builder()
+                .openAiApi(openAiApi)
+                .defaultOptions(options)
+                .build();
+        return ChatClient.builder(chatModel)
+                .defaultSystem("你是 NexaFlow 企业客户协同平台的 AI 业务助手。回答必须准确、克制，不得编造客户未提供的信息。")
+                .build();
+    }
+
+    private RestClient.Builder modelRestClient() {
+        HttpClient httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
+        JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
+        requestFactory.setReadTimeout(Duration.ofSeconds(60));
+        return RestClient.builder().requestFactory(requestFactory);
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
     }
 }
