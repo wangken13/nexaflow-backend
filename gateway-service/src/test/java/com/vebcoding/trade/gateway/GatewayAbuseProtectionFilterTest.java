@@ -12,6 +12,23 @@ import org.springframework.mock.web.server.MockServerWebExchange;
 
 class GatewayAbuseProtectionFilterTest {
     @Test
+    void healthEndpointsBypassDistributedRateLimiting() {
+        var beans = new StaticListableBeanFactory();
+        var filter = new GatewayAbuseProtectionFilter(beans.getBeanProvider(ReactiveStringRedisTemplate.class));
+        var accepted = new AtomicInteger();
+
+        for (int index = 0; index < 400; index++) {
+            var exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/readyz").build());
+            filter.filter(exchange, ignored -> {
+                accepted.incrementAndGet();
+                return reactor.core.publisher.Mono.empty();
+            }).block();
+        }
+
+        assertThat(accepted.get()).isEqualTo(400);
+    }
+
+    @Test
     void fallsBackToLocalLimitAndRejectsCaptchaFlood() {
         var beans = new StaticListableBeanFactory();
         var filter = new GatewayAbuseProtectionFilter(beans.getBeanProvider(ReactiveStringRedisTemplate.class));

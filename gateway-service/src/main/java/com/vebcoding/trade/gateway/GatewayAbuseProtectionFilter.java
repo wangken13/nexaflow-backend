@@ -37,7 +37,11 @@ public class GatewayAbuseProtectionFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
-        Policy policy = policy(exchange.getRequest().getURI().getPath());
+        String path = exchange.getRequest().getURI().getPath();
+        if (isHealthEndpoint(path)) {
+            return chain.filter(exchange);
+        }
+        Policy policy = policy(path);
         String key = policy.name() + ":" + clientIp(exchange.getRequest());
         return allowDistributed(key, policy)
                 .flatMap(allowed -> allowed ? chain.filter(exchange) : reject(exchange));
@@ -70,6 +74,10 @@ public class GatewayAbuseProtectionFilter implements GlobalFilter, Ordered {
     private Policy policy(String path) {
         if (path.startsWith("/api/inquiry/inbound/")) return INBOUND_POLICY;
         return AUTH_POLICIES.getOrDefault(path, DEFAULT_POLICY);
+    }
+
+    private boolean isHealthEndpoint(String path) {
+        return "/readyz".equals(path) || path.startsWith("/actuator/health");
     }
 
     private String clientIp(ServerHttpRequest request) {

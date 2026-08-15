@@ -12,6 +12,19 @@ x-service-defaults: &service-defaults
     - nexaflow-network
   logging: *default-logging
 
+x-app-healthcheck: &app-healthcheck
+  test: ["CMD-SHELL", "bash -ec 'exec 3<>/dev/tcp/127.0.0.1/$$SERVER_PORT; printf \"GET /actuator/health/readiness HTTP/1.1\\r\\nHost: localhost\\r\\nConnection: close\\r\\n\\r\\n\" >&3; IFS= read -r status <&3; [[ \"$$status\" == *\" 200 \"* ]]'"]
+  interval: 15s
+  timeout: 8s
+  retries: 40
+  start_period: 90s
+
+x-app-defaults: &app-defaults
+  <<: *service-defaults
+  init: true
+  stop_grace_period: 30s
+  healthcheck: *app-healthcheck
+
 x-common-env: &common-env
   JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set to a random value of at least 32 bytes}"
   AUTH_COOKIE_SECURE: "${AUTH_COOKIE_SECURE:?AUTH_COOKIE_SECURE must be set}"
@@ -30,6 +43,7 @@ x-common-env: &common-env
   MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "never"
   MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED: "true"
   MANAGEMENT_HEALTH_READINESSSTATE_ENABLED: "true"
+  JAVA_TOOL_OPTIONS: "-XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=70.0 -XX:+ExitOnOutOfMemoryError"
 
 x-mysql-env: &mysql-env
   <<: *common-env
@@ -99,9 +113,10 @@ services:
       - rabbitmq-data:/var/lib/rabbitmq:rw
     healthcheck:
       test: ["CMD-SHELL", "rabbitmq-diagnostics -q ping"]
-      interval: 15s
-      timeout: 10s
-      retries: 8
+      interval: 20s
+      timeout: 15s
+      retries: 12
+      start_period: 60s
     deploy:
       resources:
         limits:
@@ -162,12 +177,16 @@ services:
           memory: 1G
 
   gateway-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/gateway-service:${IMAGE_TAG:-latest}"
     build:
       context: ../gateway-service
       dockerfile: Dockerfile
-    environment: *common-env
+      args:
+        JAR_FILE: target/gateway-service-*.jar
+    environment:
+      <<: *common-env
+      SERVER_PORT: 18080
     depends_on:
       nacos:
         condition: service_healthy
@@ -178,13 +197,16 @@ services:
           memory: 512M
 
   auth-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/auth-service:${IMAGE_TAG:-latest}"
     build:
       context: ../auth-service/biz
       dockerfile: Dockerfile
+      args:
+        JAR_FILE: target/auth-biz-*.jar
     environment:
       <<: *mysql-env
+      SERVER_PORT: 18101
       SMS_PROVIDER: "${SMS_PROVIDER:-spug}"
       SPUG_SMS_NAME: "${SPUG_SMS_NAME:-NexaFlow}"
       SPUG_SMS_LOGIN_URL: "${SPUG_SMS_LOGIN_URL:-}"
@@ -201,13 +223,16 @@ services:
         condition: service_healthy
 
   tenant-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/tenant-service:${IMAGE_TAG:-latest}"
     build:
       context: ../tenant-service/biz
       dockerfile: Dockerfile
+      args:
+        JAR_FILE: target/tenant-biz-*.jar
     environment:
       <<: *mysql-env
+      SERVER_PORT: 18102
       BILLING_CHECKOUT_BASE_URL: "${BILLING_CHECKOUT_BASE_URL:-}"
       BILLING_WEBHOOK_SECRET: "${BILLING_WEBHOOK_SECRET:-}"
     depends_on:
@@ -217,12 +242,16 @@ services:
         condition: service_healthy
 
   customer-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/customer-service:${IMAGE_TAG:-latest}"
     build:
       context: ../customer-service/biz
       dockerfile: Dockerfile
-    environment: *messaging-env
+      args:
+        JAR_FILE: target/customer-biz-*.jar
+    environment:
+      <<: *messaging-env
+      SERVER_PORT: 18103
     depends_on:
       mysql:
         condition: service_healthy
@@ -232,12 +261,16 @@ services:
         condition: service_healthy
 
   product-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/product-service:${IMAGE_TAG:-latest}"
     build:
       context: ../product-service/biz
       dockerfile: Dockerfile
-    environment: *mysql-env
+      args:
+        JAR_FILE: target/product-biz-*.jar
+    environment:
+      <<: *mysql-env
+      SERVER_PORT: 18112
     depends_on:
       mysql:
         condition: service_healthy
@@ -245,13 +278,16 @@ services:
         condition: service_healthy
 
   inquiry-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/inquiry-service:${IMAGE_TAG:-latest}"
     build:
       context: ../inquiry-service/biz
       dockerfile: Dockerfile
+      args:
+        JAR_FILE: target/inquiry-biz-*.jar
     environment:
       <<: *messaging-env
+      SERVER_PORT: 18104
       INTEGRATION_MASTER_KEY: "${INTEGRATION_MASTER_KEY:?INTEGRATION_MASTER_KEY must be at least 32 random characters}"
     depends_on:
       mysql:
@@ -262,13 +298,16 @@ services:
         condition: service_healthy
 
   ai-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/ai-service:${IMAGE_TAG:-latest}"
     build:
       context: ../ai-service/biz
       dockerfile: Dockerfile
+      args:
+        JAR_FILE: target/ai-biz-*.jar
     environment:
       <<: *messaging-env
+      SERVER_PORT: 18105
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       OPENAI_MODEL: "${OPENAI_MODEL:-gpt-4o-mini}"
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
@@ -283,12 +322,16 @@ services:
         condition: service_healthy
 
   quotation-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/quotation-service:${IMAGE_TAG:-latest}"
     build:
       context: ../quotation-service/biz
       dockerfile: Dockerfile
-    environment: *messaging-env
+      args:
+        JAR_FILE: target/quotation-biz-*.jar
+    environment:
+      <<: *messaging-env
+      SERVER_PORT: 18106
     depends_on:
       mysql:
         condition: service_healthy
@@ -298,12 +341,16 @@ services:
         condition: service_healthy
 
   order-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/order-service:${IMAGE_TAG:-latest}"
     build:
       context: ../order-service/biz
       dockerfile: Dockerfile
-    environment: *messaging-env
+      args:
+        JAR_FILE: target/order-biz-*.jar
+    environment:
+      <<: *messaging-env
+      SERVER_PORT: 18107
     depends_on:
       mysql:
         condition: service_healthy
@@ -313,12 +360,16 @@ services:
         condition: service_healthy
 
   task-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/task-service:${IMAGE_TAG:-latest}"
     build:
       context: ../task-service/biz
       dockerfile: Dockerfile
-    environment: *messaging-env
+      args:
+        JAR_FILE: target/task-biz-*.jar
+    environment:
+      <<: *messaging-env
+      SERVER_PORT: 18108
     depends_on:
       mysql:
         condition: service_healthy
@@ -328,12 +379,16 @@ services:
         condition: service_healthy
 
   notification-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/notification-service:${IMAGE_TAG:-latest}"
     build:
       context: ../notification-service/biz
       dockerfile: Dockerfile
-    environment: *messaging-env
+      args:
+        JAR_FILE: target/notification-biz-*.jar
+    environment:
+      <<: *messaging-env
+      SERVER_PORT: 18109
     depends_on:
       mysql:
         condition: service_healthy
@@ -343,13 +398,16 @@ services:
         condition: service_healthy
 
   file-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/file-service:${IMAGE_TAG:-latest}"
     build:
       context: ../file-service/biz
       dockerfile: Dockerfile
+      args:
+        JAR_FILE: target/file-biz-*.jar
     environment:
       <<: *mysql-env
+      SERVER_PORT: 18110
       MINIO_ENABLED: "true"
       MINIO_ENDPOINT: http://minio:9000
       MINIO_ACCESS_KEY: "${MINIO_ROOT_USER:?MINIO_ROOT_USER must be set}"
@@ -363,13 +421,16 @@ services:
         condition: service_healthy
 
   aigc-service:
-    <<: *service-defaults
+    <<: *app-defaults
     image: "nexaflow/aigc-service:${IMAGE_TAG:-latest}"
     build:
       context: ../aigc-service
       dockerfile: Dockerfile
+      args:
+        JAR_FILE: target/aigc-service-*.jar
     environment:
       <<: *messaging-env
+      SERVER_PORT: 18111
       OPENAI_API_KEY: "${OPENAI_API_KEY:-}"
       OPENAI_MODEL: "${OPENAI_MODEL:-gpt-4o-mini}"
       DEEPSEEK_API_KEY: "${DEEPSEEK_API_KEY:-}"
@@ -399,7 +460,7 @@ services:
       - "${SSL_KEY_PATH:?SSL_KEY_PATH must point to the private key}:/etc/nginx/ssl/private.key:ro"
     depends_on:
       gateway-service:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/healthz || exit 1"]
       interval: 15s
