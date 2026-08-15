@@ -108,6 +108,17 @@ initialize_nacos_admin() {
     | compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot nacos_config'
 }
 
+repair_known_failed_migrations() {
+  repair_file="$infra_dir/mysql/repair/V018__complete_operation_audit_repair.sql"
+  failed_v018=$(compose exec -T mysql sh -c \
+    'MYSQL_PWD="$MYSQL_PASSWORD" mysql -N -B -u"$MYSQL_USER" trade_ai -e "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '\''018'\'' AND success = 0"' \
+    2>/dev/null || true)
+  if [ "$failed_v018" = "1" ]; then
+    echo "[repair] complete failed Flyway migration V018"
+    compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" trade_ai' < "$repair_file"
+  fi
+}
+
 package_backend() {
   if [ "${SKIP_PACKAGE:-false}" = "true" ]; then
     echo "[skip] backend package"
@@ -172,6 +183,7 @@ initialize_rabbitmq_user
 
 echo "[3/9] Initialize and start Nacos"
 initialize_nacos_admin
+repair_known_failed_migrations
 compose up -d nacos
 wait_healthy nacos 180
 

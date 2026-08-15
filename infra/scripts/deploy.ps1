@@ -101,6 +101,19 @@ function Initialize-RabbitMqUser {
     if ($LASTEXITCODE -ne 0) { throw 'Failed to grant RabbitMQ permissions.' }
 }
 
+function Repair-KnownFailedMigrations {
+    $repairFile = Join-Path $infraDir 'mysql\repair\V018__complete_operation_audit_repair.sql'
+    $query = "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '018' AND success = 0"
+    $failedV018 = (& docker compose --env-file $EnvFile -f $composeFile exec -T mysql `
+        sh -c "MYSQL_PWD=`"`$MYSQL_PASSWORD`" mysql -N -B -u`"`$MYSQL_USER`" trade_ai -e `"$query`"" 2>$null).Trim()
+    if ($failedV018 -eq '1') {
+        Write-Output '[repair] complete failed Flyway migration V018'
+        Get-Content -Raw $repairFile | & docker compose --env-file $EnvFile -f $composeFile exec -T mysql `
+            sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" trade_ai'
+        if ($LASTEXITCODE -ne 0) { throw 'Failed to repair Flyway migration V018.' }
+    }
+}
+
 Write-Output '[1/9] Validate production configuration'
 Invoke-Compose -ComposeArguments @('config', '--quiet')
 
@@ -111,6 +124,7 @@ Initialize-RabbitMqUser
 
 Write-Output '[3/9] Initialize and start Nacos'
 Initialize-NacosAdmin
+Repair-KnownFailedMigrations
 Invoke-Compose -ComposeArguments @('up', '-d', 'nacos')
 Wait-Healthy 'nacos' 180
 
