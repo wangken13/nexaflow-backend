@@ -20,6 +20,7 @@ $businessServices = @(
     'inquiry-service', 'ai-service', 'quotation-service', 'order-service',
     'task-service', 'notification-service', 'file-service', 'aigc-service'
 )
+$postMigrationServices = $businessServices | Where-Object { $_ -ne 'auth-service' }
 $bootModules = @(
     'gateway-service', 'auth-service/biz', 'tenant-service/biz', 'customer-service/biz',
     'product-service/biz', 'inquiry-service/biz', 'ai-service/biz', 'quotation-service/biz',
@@ -101,17 +102,21 @@ function Initialize-RabbitMqUser {
     if ($LASTEXITCODE -ne 0) { throw 'Failed to grant RabbitMQ permissions.' }
 }
 
-function Repair-KnownFailedMigrations {
-    $repairFile = Join-Path $infraDir 'mysql\repair\V018__complete_operation_audit_repair.sql'
-    $query = "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '018' AND success = 0"
-    $failedV018 = (& docker compose --env-file $EnvFile -f $composeFile exec -T mysql `
+function Repair-FailedMigration([string]$Version, [string]$RepairFile) {
+    $query = "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '$Version' AND success = 0"
+    $failedCount = (& docker compose --env-file $EnvFile -f $composeFile exec -T mysql `
         sh -c "MYSQL_PWD=`"`$MYSQL_PASSWORD`" mysql -N -B -u`"`$MYSQL_USER`" trade_ai -e `"$query`"" 2>$null).Trim()
-    if ($failedV018 -eq '1') {
-        Write-Output '[repair] complete failed Flyway migration V018'
-        Get-Content -Raw $repairFile | & docker compose --env-file $EnvFile -f $composeFile exec -T mysql `
+    if ($failedCount -and $failedCount -ne '0') {
+        Write-Output "[repair] complete failed Flyway migration V$Version"
+        Get-Content -Raw $RepairFile | & docker compose --env-file $EnvFile -f $composeFile exec -T mysql `
             sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" trade_ai'
-        if ($LASTEXITCODE -ne 0) { throw 'Failed to repair Flyway migration V018.' }
+        if ($LASTEXITCODE -ne 0) { throw "Failed to repair Flyway migration V$Version." }
     }
+}
+
+function Repair-KnownFailedMigrations {
+    Repair-FailedMigration '018' (Join-Path $infraDir 'mysql\repair\V018__complete_operation_audit_repair.sql')
+    Repair-FailedMigration '019' (Join-Path $infraDir 'mysql\repair\V019__import_jobs_repair.sql')
 }
 
 Write-Output '[1/9] Validate production configuration'
@@ -158,8 +163,11 @@ Invoke-Compose -ComposeArguments @('up', '-d', '--force-recreate', '--no-deps', 
 Wait-Healthy 'gateway-service' 180
 
 Write-Output '[8/9] Start business services'
-Invoke-Compose -ComposeArguments (@('up', '-d', '--force-recreate', '--no-deps') + $businessServices)
-foreach ($service in $businessServices) { Wait-Healthy $service 180 }
+Write-Output '[migrate] start auth-service as the exclusive Flyway migration owner'
+Invoke-Compose -ComposeArguments @('up', '-d', '--force-recreate', '--no-deps', 'auth-service')
+Wait-Healthy 'auth-service' 180
+Invoke-Compose -ComposeArguments (@('up', '-d', '--force-recreate', '--no-deps') + $postMigrationServices)
+foreach ($service in $postMigrationServices) { Wait-Healthy $service 180 }
 
 Write-Output '[9/9] Start frontend and verify routing'
 Invoke-Compose -ComposeArguments @('up', '-d', '--force-recreate', '--no-deps', 'frontend')

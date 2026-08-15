@@ -14,6 +14,7 @@ export IMAGE_TAG="$release_tag"
 
 infrastructure_services="mysql redis rabbitmq minio"
 business_services="auth-service tenant-service customer-service product-service inquiry-service ai-service quotation-service order-service task-service notification-service file-service aigc-service"
+post_migration_services="tenant-service customer-service product-service inquiry-service ai-service quotation-service order-service task-service notification-service file-service aigc-service"
 boot_modules="gateway-service auth-service/biz tenant-service/biz customer-service/biz product-service/biz inquiry-service/biz ai-service/biz quotation-service/biz order-service/biz task-service/biz notification-service/biz file-service/biz aigc-service"
 
 die() {
@@ -108,15 +109,21 @@ initialize_nacos_admin() {
     | compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot nacos_config'
 }
 
-repair_known_failed_migrations() {
-  repair_file="$infra_dir/mysql/repair/V018__complete_operation_audit_repair.sql"
-  failed_v018=$(compose exec -T mysql sh -c \
-    'MYSQL_PWD="$MYSQL_PASSWORD" mysql -N -B -u"$MYSQL_USER" trade_ai -e "SELECT COUNT(*) FROM flyway_schema_history WHERE version = '\''018'\'' AND success = 0"' \
+repair_failed_migration() {
+  migration_version=$1
+  repair_file=$2
+  failed_count=$(compose exec -T mysql sh -c \
+    "MYSQL_PWD=\"\$MYSQL_PASSWORD\" mysql -N -B -u\"\$MYSQL_USER\" trade_ai -e \"SELECT COUNT(*) FROM flyway_schema_history WHERE version = '$migration_version' AND success = 0\"" \
     2>/dev/null || true)
-  if [ "$failed_v018" = "1" ]; then
-    echo "[repair] complete failed Flyway migration V018"
+  if [ -n "$failed_count" ] && [ "$failed_count" != "0" ]; then
+    echo "[repair] complete failed Flyway migration V$migration_version"
     compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" trade_ai' < "$repair_file"
   fi
+}
+
+repair_known_failed_migrations() {
+  repair_failed_migration "018" "$infra_dir/mysql/repair/V018__complete_operation_audit_repair.sql"
+  repair_failed_migration "019" "$infra_dir/mysql/repair/V019__import_jobs_repair.sql"
 }
 
 package_backend() {
@@ -201,8 +208,11 @@ compose up -d --force-recreate --no-deps gateway-service
 wait_healthy gateway-service 180
 
 echo "[8/9] Start business services"
-compose up -d --force-recreate --no-deps $business_services
-for service in $business_services; do
+echo "[migrate] start auth-service as the exclusive Flyway migration owner"
+compose up -d --force-recreate --no-deps auth-service
+wait_healthy auth-service 180
+compose up -d --force-recreate --no-deps $post_migration_services
+for service in $post_migration_services; do
   wait_healthy "$service" 180
 done
 
