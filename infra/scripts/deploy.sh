@@ -9,6 +9,8 @@ env_file="${ENV_FILE:-$infra_dir/.env.prod}"
 maven_image="${MAVEN_IMAGE:-maven:3.9.11-eclipse-temurin-21}"
 maven_settings="$infra_dir/maven-settings.xml"
 maven_cache_volume="${MAVEN_CACHE_VOLUME:-nexaflow-maven-cache}"
+maven_memory_limit="${MAVEN_BUILD_MEMORY_LIMIT:-1536m}"
+maven_opts="${MAVEN_OPTS:--Xms128m -Xmx768m -XX:+UseSerialGC}"
 release_tag="${IMAGE_TAG:-$(git -C "$backend_dir" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)}"
 export IMAGE_TAG="$release_tag"
 
@@ -141,6 +143,8 @@ package_backend() {
   fi
 
   docker run --rm \
+    --memory "$maven_memory_limit" \
+    -e MAVEN_OPTS="$maven_opts" \
     -v "$maven_cache_volume:/root/.m2" \
     -v "$maven_settings:/tmp/maven-settings.xml:ro" \
     -v "$backend_dir:/workspace" \
@@ -211,8 +215,9 @@ echo "[8/9] Start business services"
 echo "[migrate] start auth-service as the exclusive Flyway migration owner"
 compose up -d --force-recreate --no-deps auth-service
 wait_healthy auth-service 180
-compose up -d --force-recreate --no-deps $post_migration_services
 for service in $post_migration_services; do
+  echo "[start] $service"
+  compose up -d --force-recreate --no-deps "$service"
   wait_healthy "$service" 180
 done
 

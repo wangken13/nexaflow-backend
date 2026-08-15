@@ -11,6 +11,8 @@ $frontendDir = Join-Path (Split-Path $backendDir -Parent) 'tradeflow-ai-frontend
 $composeFile = Join-Path $infraDir 'docker-compose.prod.yml'
 $mavenSettings = Join-Path $infraDir 'maven-settings.xml'
 $mavenCacheVolume = 'nexaflow-maven-cache'
+$mavenMemoryLimit = if ($env:MAVEN_BUILD_MEMORY_LIMIT) { $env:MAVEN_BUILD_MEMORY_LIMIT } else { '1536m' }
+$mavenOptions = if ($env:MAVEN_OPTS) { $env:MAVEN_OPTS } else { '-Xms128m -Xmx768m -XX:+UseSerialGC' }
 $EnvFile = (Resolve-Path $EnvFile).Path
 $env:IMAGE_TAG = (& git -C $backendDir rev-parse --short HEAD).Trim()
 
@@ -137,6 +139,8 @@ Write-Output '[4/9] Package backend'
 if (-not $SkipPackage) {
     $mavenArgs = if ($RunTests) { @('-B', 'clean', 'verify') } else { @('-B', '-Dmaven.test.skip=true', 'clean', 'package') }
     & docker run --rm `
+        --memory $mavenMemoryLimit `
+        -e "MAVEN_OPTS=$mavenOptions" `
         -v "$mavenCacheVolume`:/root/.m2" `
         -v "$mavenSettings`:/tmp/maven-settings.xml:ro" `
         -v "$backendDir`:/workspace" `
@@ -166,8 +170,11 @@ Write-Output '[8/9] Start business services'
 Write-Output '[migrate] start auth-service as the exclusive Flyway migration owner'
 Invoke-Compose -ComposeArguments @('up', '-d', '--force-recreate', '--no-deps', 'auth-service')
 Wait-Healthy 'auth-service' 180
-Invoke-Compose -ComposeArguments (@('up', '-d', '--force-recreate', '--no-deps') + $postMigrationServices)
-foreach ($service in $postMigrationServices) { Wait-Healthy $service 180 }
+foreach ($service in $postMigrationServices) {
+    Write-Output "[start] $service"
+    Invoke-Compose -ComposeArguments @('up', '-d', '--force-recreate', '--no-deps', $service)
+    Wait-Healthy $service 180
+}
 
 Write-Output '[9/9] Start frontend and verify routing'
 Invoke-Compose -ComposeArguments @('up', '-d', '--force-recreate', '--no-deps', 'frontend')

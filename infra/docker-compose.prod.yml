@@ -24,6 +24,11 @@ x-app-defaults: &app-defaults
   init: true
   stop_grace_period: 30s
   healthcheck: *app-healthcheck
+  deploy:
+    resources:
+      limits:
+        cpus: "1.0"
+        memory: 512M
 
 x-common-env: &common-env
   JWT_SECRET: "${JWT_SECRET:?JWT_SECRET must be set to a random value of at least 32 bytes}"
@@ -43,7 +48,7 @@ x-common-env: &common-env
   MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS: "never"
   MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED: "true"
   MANAGEMENT_HEALTH_READINESSSTATE_ENABLED: "true"
-  JAVA_TOOL_OPTIONS: "-XX:InitialRAMPercentage=20.0 -XX:MaxRAMPercentage=70.0 -XX:+ExitOnOutOfMemoryError"
+  JAVA_TOOL_OPTIONS: "${APP_JAVA_TOOL_OPTIONS:--Xms64m -Xmx224m -XX:MaxMetaspaceSize=160m -XX:ReservedCodeCacheSize=64m -Xss512k -XX:+UseSerialGC -XX:+ExitOnOutOfMemoryError}"
 
 x-mysql-env: &mysql-env
   <<: *common-env
@@ -67,7 +72,7 @@ services:
       MYSQL_USER: "${MYSQL_APP_USER:?MYSQL_APP_USER must be set}"
       MYSQL_PASSWORD: "${MYSQL_APP_PASSWORD:?MYSQL_APP_PASSWORD must be set}"
       TZ: Asia/Shanghai
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --innodb-buffer-pool-size=384M --max-connections=120
     volumes:
       - mysql-data:/var/lib/mysql:rw
       - ./mysql/init:/docker-entrypoint-initdb.d:ro
@@ -82,7 +87,7 @@ services:
       resources:
         limits:
           cpus: "2.0"
-          memory: 2G
+          memory: 1G
 
   redis:
     <<: *service-defaults
@@ -148,6 +153,9 @@ services:
     image: nacos/nacos-server:v2.4.3
     environment:
       MODE: standalone
+      JVM_XMS: 256m
+      JVM_XMX: 512m
+      JVM_XMN: 128m
       NACOS_AUTH_ENABLE: "true"
       NACOS_AUTH_TOKEN: "${NACOS_AUTH_TOKEN:?NACOS_AUTH_TOKEN must be set}"
       NACOS_AUTH_IDENTITY_KEY: "${NACOS_AUTH_IDENTITY_KEY:?NACOS_AUTH_IDENTITY_KEY must be set}"
@@ -174,7 +182,7 @@ services:
       resources:
         limits:
           cpus: "1.0"
-          memory: 1G
+          memory: 768M
 
   gateway-service:
     <<: *app-defaults
