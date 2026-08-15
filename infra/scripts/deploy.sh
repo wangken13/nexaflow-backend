@@ -7,6 +7,8 @@ frontend_dir=$(CDPATH= cd -- "$backend_dir/../tradeflow-ai-frontend" && pwd)
 compose_file="$infra_dir/docker-compose.prod.yml"
 env_file="${ENV_FILE:-$infra_dir/.env.prod}"
 maven_image="${MAVEN_IMAGE:-maven:3.9.11-eclipse-temurin-21}"
+maven_settings="$infra_dir/maven-settings.xml"
+maven_cache_volume="${MAVEN_CACHE_VOLUME:-nexaflow-maven-cache}"
 release_tag="${IMAGE_TAG:-$(git -C "$backend_dir" rev-parse --short HEAD 2>/dev/null || date +%Y%m%d%H%M%S)}"
 export IMAGE_TAG="$release_tag"
 
@@ -23,6 +25,7 @@ command -v docker >/dev/null 2>&1 || die "Docker is required."
 docker compose version >/dev/null 2>&1 || die "Docker Compose v2 is required."
 [ -f "$env_file" ] || die "Missing environment file: $env_file"
 [ -d "$frontend_dir" ] || die "Missing frontend repository: $frontend_dir"
+[ -f "$maven_settings" ] || die "Missing Maven settings: $maven_settings"
 
 compose() {
   docker compose --env-file "$env_file" -f "$compose_file" "$@"
@@ -120,10 +123,12 @@ package_backend() {
   fi
 
   docker run --rm \
+    -v "$maven_cache_volume:/root/.m2" \
+    -v "$maven_settings:/tmp/maven-settings.xml:ro" \
     -v "$backend_dir:/workspace" \
     -w /workspace \
     "$maven_image" \
-    mvn -B $maven_flags $maven_goal
+    mvn -s /tmp/maven-settings.xml -B $maven_flags $maven_goal
 }
 
 validate_boot_jars() {

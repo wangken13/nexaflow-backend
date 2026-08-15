@@ -9,6 +9,8 @@ $infraDir = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
 $backendDir = (Resolve-Path (Join-Path $infraDir '..')).Path
 $frontendDir = Join-Path (Split-Path $backendDir -Parent) 'tradeflow-ai-frontend'
 $composeFile = Join-Path $infraDir 'docker-compose.prod.yml'
+$mavenSettings = Join-Path $infraDir 'maven-settings.xml'
+$mavenCacheVolume = 'nexaflow-maven-cache'
 $EnvFile = (Resolve-Path $EnvFile).Path
 $env:IMAGE_TAG = (& git -C $backendDir rev-parse --short HEAD).Trim()
 
@@ -27,6 +29,9 @@ $bootModules = @(
 
 if (-not (Test-Path $frontendDir)) {
     throw "Missing frontend repository: $frontendDir"
+}
+if (-not (Test-Path $mavenSettings)) {
+    throw "Missing Maven settings: $mavenSettings"
 }
 
 function Invoke-Compose {
@@ -112,7 +117,13 @@ Wait-Healthy 'nacos' 180
 Write-Output '[4/9] Package backend'
 if (-not $SkipPackage) {
     $mavenArgs = if ($RunTests) { @('-B', 'clean', 'verify') } else { @('-B', '-Dmaven.test.skip=true', 'clean', 'package') }
-    & docker run --rm -v "$backendDir`:/workspace" -w /workspace maven:3.9.11-eclipse-temurin-21 mvn @mavenArgs
+    & docker run --rm `
+        -v "$mavenCacheVolume`:/root/.m2" `
+        -v "$mavenSettings`:/tmp/maven-settings.xml:ro" `
+        -v "$backendDir`:/workspace" `
+        -w /workspace `
+        maven:3.9.11-eclipse-temurin-21 `
+        mvn -s /tmp/maven-settings.xml @mavenArgs
     if ($LASTEXITCODE -ne 0) { throw 'Backend Maven package failed.' }
 }
 
