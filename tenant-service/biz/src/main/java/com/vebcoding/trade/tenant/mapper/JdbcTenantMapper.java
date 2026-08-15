@@ -136,7 +136,7 @@ public class JdbcTenantMapper implements TenantMapper {
         return jdbcTemplate.query("""
                 SELECT job.id, job.resource_type, job.status, job.received_count, job.imported_count,
                        job.skipped_count, job.operator_id, job.created_at, job.completed_at,
-                       COALESCE(GROUP_CONCAT(error.error_message ORDER BY error.row_number SEPARATOR '\\n'), '') errors
+                       COALESCE(GROUP_CONCAT(error.error_message ORDER BY error.`row_number` SEPARATOR '\\n'), '') errors
                 FROM data_import_jobs job
                 LEFT JOIN data_import_errors error ON error.tenant_id=job.tenant_id AND error.job_id=job.id
                 WHERE job.tenant_id=?

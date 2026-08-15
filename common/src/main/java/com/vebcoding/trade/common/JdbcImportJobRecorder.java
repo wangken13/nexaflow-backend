@@ -30,7 +30,7 @@ public class JdbcImportJobRecorder implements ImportJobRecorder {
         for (int index = 0; index < errors.size(); index++) {
             String message = errors.get(index);
             jdbcTemplate.update("""
-                    INSERT INTO data_import_errors (tenant_id, job_id, row_number, error_message)
+                    INSERT INTO data_import_errors (tenant_id, job_id, `row_number`, error_message)
                     VALUES (?, ?, ?, ?)
                     """, TenantContext.tenantId(), jobId, rowNumber(message, index + 1), limit(message));
         }

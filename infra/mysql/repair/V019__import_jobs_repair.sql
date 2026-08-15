@@ -17,12 +17,13 @@ CREATE TABLE IF NOT EXISTS data_import_errors (
   id BIGINT PRIMARY KEY AUTO_INCREMENT,
   tenant_id VARCHAR(64) NOT NULL,
   job_id VARCHAR(64) NOT NULL,
-  row_number INT NOT NULL,
+  `row_number` INT NOT NULL,
   error_message VARCHAR(1000) NOT NULL,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  KEY idx_import_error_tenant_job (tenant_id, job_id, row_number)
+  KEY idx_import_error_tenant_job (tenant_id, job_id, `row_number`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
-UPDATE flyway_schema_history
-SET success = 1
+-- The corrected V019 migration is idempotent. Remove only its failed history
+-- row so Flyway can rerun it and record the corrected checksum.
+DELETE FROM flyway_schema_history
 WHERE version = '019' AND success = 0;
