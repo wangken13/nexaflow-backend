@@ -34,4 +34,24 @@ class AuthControllerTest {
         assertThat(servletResponse.getHeader("Set-Cookie")).contains("HttpOnly");
         assertThat(controller.captcha().data().imageDataUrl()).startsWith("data:image/png;base64,");
     }
+
+    @Test
+    void refreshCookieUsesConfiguredProductionAttributes() {
+        BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+        AuthService service = new AuthService(new InMemoryAuthMapper(
+                passwordEncoder.encode("admin123")), passwordEncoder, (phone, code, purpose) -> { }, null,
+                (captchaId, captchaCode) -> true);
+        ReflectionTestUtils.setField(service, "secret", "test-secret-with-at-least-32-bytes-long");
+        AuthController controller = new AuthController(service,
+                new LoginCaptchaService(new TestLoginCaptchaMapper(), passwordEncoder));
+        ReflectionTestUtils.setField(controller, "secureCookie", true);
+        ReflectionTestUtils.setField(controller, "cookieDomain", ".wkkk.site");
+        ReflectionTestUtils.setField(controller, "cookieSameSite", "Lax");
+
+        MockHttpServletResponse servletResponse = new MockHttpServletResponse();
+        controller.login(new LoginRequest("admin", "admin123", "captcha", "captcha"), servletResponse);
+
+        assertThat(servletResponse.getHeader("Set-Cookie"))
+                .contains("Domain=.wkkk.site", "Path=/api/auth", "Secure", "HttpOnly", "SameSite=Lax");
+    }
 }

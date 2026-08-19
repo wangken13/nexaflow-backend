@@ -43,6 +43,16 @@ public class AuthController {
     @Value("${AUTH_COOKIE_SECURE:true}")
     private boolean secureCookie;
 
+    /**
+     * Production uses the parent domain so both wkkk.site and www.wkkk.site
+     * share one refresh session. Keep it empty for localhost development.
+     */
+    @Value("${AUTH_COOKIE_DOMAIN:}")
+    private String cookieDomain;
+
+    @Value("${AUTH_COOKIE_SAME_SITE:Lax}")
+    private String cookieSameSite;
+
     public AuthController(AuthService authService, LoginCaptchaService loginCaptchaService) {
         this(authService, loginCaptchaService, null);
     }
@@ -145,8 +155,16 @@ public class AuthController {
     }
 
     private ResponseCookie.ResponseCookieBuilder refreshCookie(String value) {
-        return ResponseCookie.from("NEXAFLOW_REFRESH", value).httpOnly(true).secure(secureCookie)
-                .sameSite("Strict").path("/api/auth").maxAge(java.time.Duration.ofDays(30));
+        ResponseCookie.ResponseCookieBuilder builder = ResponseCookie.from("NEXAFLOW_REFRESH", value)
+                .httpOnly(true)
+                .secure(secureCookie)
+                .sameSite(cookieSameSite)
+                .path("/api/auth")
+                .maxAge(java.time.Duration.ofDays(30));
+        if (cookieDomain != null && !cookieDomain.isBlank()) {
+            builder.domain(cookieDomain.trim());
+        }
+        return builder;
     }
 
     private void protect(String scope, HttpServletRequest request, int max, java.time.Duration window) {

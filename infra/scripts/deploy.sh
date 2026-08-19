@@ -128,6 +128,16 @@ repair_known_failed_migrations() {
   repair_failed_migration "019" "$infra_dir/mysql/repair/V019__import_jobs_repair.sql"
 }
 
+load_demo_data() {
+  # Demo data is opt-in. Never mix it into a normal production deployment.
+  if [ "${LOAD_DEMO_DATA:-$(read_env LOAD_DEMO_DATA)}" != "true" ]; then
+    return 0
+  fi
+  echo "[demo] load business demo data"
+  compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" trade_ai' \
+    < "$infra_dir/mysql/demo/001_business_demo_data.sql"
+}
+
 package_backend() {
   if [ "${SKIP_PACKAGE:-false}" = "true" ]; then
     echo "[skip] backend package"
@@ -215,6 +225,7 @@ echo "[8/9] Start business services"
 echo "[migrate] start auth-service as the exclusive Flyway migration owner"
 compose up -d --force-recreate --no-deps auth-service
 wait_healthy auth-service 180
+load_demo_data
 for service in $post_migration_services; do
   echo "[start] $service"
   compose up -d --force-recreate --no-deps "$service"
