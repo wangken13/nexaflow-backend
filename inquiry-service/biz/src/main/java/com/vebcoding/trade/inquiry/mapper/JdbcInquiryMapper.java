@@ -98,4 +98,11 @@ public class JdbcInquiryMapper implements InquiryMapper {
             return Optional.empty();
         }
     }
+
+    @Override
+    public boolean customerExists(String tenantId, String customerId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM customers WHERE tenant_id=? AND id=?", Integer.class, tenantId, customerId);
+        return count != null && count == 1;
+    }
 }

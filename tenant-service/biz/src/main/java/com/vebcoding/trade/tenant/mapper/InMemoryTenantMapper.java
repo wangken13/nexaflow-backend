@@ -111,7 +111,20 @@ public class InMemoryTenantMapper implements TenantMapper {
     @Override public Optional<KnowledgeArticleView> findKnowledgeArticle(String tenantId, String id) { return Optional.ofNullable(knowledge.get(id)).filter(item -> tenantId.equals(item.tenantId())); }
     @Override public KnowledgeArticleView saveKnowledgeArticle(KnowledgeArticleView article) { knowledge.put(article.id(), article); return article; }
     @Override public boolean deleteKnowledgeArticle(String tenantId, String id) { return findKnowledgeArticle(tenantId, id).map(item -> knowledge.remove(id) != null).orElse(false); }
-    @Override public List<ChannelConfigView> findChannelConfigs(String tenantId) { return List.copyOf(channels.values()); }
-    @Override public ChannelConfigView saveChannelConfig(String tenantId, ChannelConfigView channel, String updatedBy) { channels.put(channel.channelType(), channel); return channel; }
-    @Override public SubscriptionView findSubscription(String tenantId) { return new SubscriptionView("PRO", "专业版", BigDecimal.valueOf(899), members.size(), 20, 0, 10000, 128, 3000); }
+    @Override public List<ChannelConfigView> findChannelConfigs(String tenantId) {
+        String keyPrefix = tenantId + ":";
+        return channels.entrySet().stream()
+                .filter(entry -> entry.getKey().startsWith(keyPrefix))
+                .map(java.util.Map.Entry::getValue)
+                .toList();
+    }
+    @Override public ChannelConfigView saveChannelConfig(String tenantId, ChannelConfigView channel, String updatedBy) {
+        channels.put(tenantId + ":" + channel.channelType(), channel);
+        return channel;
+    }
+    @Override public SubscriptionView findSubscription(String tenantId) {
+        int memberCount = Math.toIntExact(
+                members.values().stream().filter(member -> tenantId.equals(member.tenantId())).count());
+        return new SubscriptionView("PRO", "专业版", BigDecimal.valueOf(899), memberCount, 20, 0, 10000, 128, 3000);
+    }
 }

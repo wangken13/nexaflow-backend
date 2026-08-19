@@ -80,6 +80,21 @@ class JwtGatewayFilterTest {
     }
 
     @Test
+    void exactHealthPathDoesNotRequireAuthentication() {
+        JwtGatewayFilter filter = filter();
+        AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
+        var exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/actuator/health").build());
+
+        filter.filter(exchange, current -> {
+            forwarded.set(current.getRequest());
+            return current.getResponse().setComplete();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(exchange.getResponse().getStatusCode()).isNotEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
     void inboundChannelPathDoesNotAcceptSpoofedUserIdentity() {
         JwtGatewayFilter filter = filter();
         AtomicReference<ServerHttpRequest> forwarded = new AtomicReference<>();
@@ -103,6 +118,16 @@ class JwtGatewayFilterTest {
         var exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/customer/customers")
                 .header(HttpHeaders.AUTHORIZATION, "Bearer invalid-token")
                 .build());
+
+        filter.filter(exchange, current -> current.getResponse().setComplete()).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    @Test
+    void pathThatOnlyStartsWithPublicLoginPathStillRequiresAuthentication() {
+        JwtGatewayFilter filter = filter();
+        var exchange = MockServerWebExchange.from(MockServerHttpRequest.post("/api/auth/login-admin").build());
 
         filter.filter(exchange, current -> current.getResponse().setComplete()).block();
 

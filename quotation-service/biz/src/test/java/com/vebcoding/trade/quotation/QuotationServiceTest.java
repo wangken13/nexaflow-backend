@@ -128,4 +128,33 @@ class QuotationServiceTest {
         assertThatThrownBy(() -> service.decideApproval(quotation.id(), false, " "))
                 .isInstanceOf(BusinessException.class).hasMessage("驳回报价时必须填写原因");
     }
+
+    @Test
+    void createRejectsUnknownCustomerAndProductReferences() {
+        QuotationService service = new QuotationService(new InMemoryQuotationMapper());
+
+        assertThatThrownBy(() -> service.create(new CreateQuotationRequest(
+                "cus-other", "Mug", 1, BigDecimal.ONE)))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("客户不存在或不属于当前企业");
+
+        var request = new CreateQuotationRequest("cus-001", "USD", "FOB", "Shanghai",
+                BigDecimal.ZERO, "2026-08-30", "", List.of(
+                new QuotationItemRequest("prd-other", "Mug", "White", 1, BigDecimal.ONE)));
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("报价产品不存在、已停用或不属于当前企业");
+    }
+
+    @Test
+    void createRejectsInvalidValidityDateWithBusinessMessage() {
+        QuotationService service = new QuotationService(new InMemoryQuotationMapper());
+        var request = new CreateQuotationRequest("cus-001", "USD", "FOB", "Shanghai",
+                BigDecimal.ZERO, "2026/08/30", "", List.of(
+                new QuotationItemRequest("prd-1", "Mug", "White", 1, BigDecimal.ONE)));
+
+        assertThatThrownBy(() -> service.create(request))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("报价有效期格式必须为 yyyy-MM-dd");
+    }
 }

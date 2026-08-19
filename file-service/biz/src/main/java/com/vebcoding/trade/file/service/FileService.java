@@ -10,6 +10,7 @@ import com.vebcoding.trade.file.mapper.FileMetadataMapper;
 import java.util.UUID;
 import java.io.IOException;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -21,7 +22,16 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class FileService {
     private static final Logger log = LoggerFactory.getLogger(FileService.class);
+    private static final long MAX_FILE_SIZE_BYTES = 20L * 1024 * 1024;
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of("pdf", "png", "jpg", "jpeg", "webp", "doc", "docx", "xls", "xlsx", "csv", "txt");
+    private static final Map<String, String> CONTENT_TYPES = Map.ofEntries(
+            Map.entry("pdf", "application/pdf"), Map.entry("png", "image/png"),
+            Map.entry("jpg", "image/jpeg"), Map.entry("jpeg", "image/jpeg"), Map.entry("webp", "image/webp"),
+            Map.entry("doc", "application/msword"),
+            Map.entry("docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            Map.entry("xls", "application/vnd.ms-excel"),
+            Map.entry("xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            Map.entry("csv", "text/csv"), Map.entry("txt", "text/plain"));
     private final FileMetadataMapper fileMetadataMapper;
     private final FileObjectStorage fileObjectStorage;
 
@@ -46,6 +56,9 @@ public class FileService {
         if (file == null || file.isEmpty()) {
             throw new BusinessException("请选择需要上传的文件，文件内容不能为空");
         }
+        if (file.getSize() > MAX_FILE_SIZE_BYTES) {
+            throw new BusinessException("上传文件不能超过20MB");
+        }
         String originalName = file.getOriginalFilename();
         if (originalName == null || originalName.isBlank()) {
             throw new BusinessException("无法识别文件名，请重新选择文件");
@@ -60,7 +73,12 @@ public class FileService {
         if (!ALLOWED_EXTENSIONS.contains(extension)) {
             throw new BusinessException("仅支持 PDF、图片、Office 文档、CSV 或文本文件");
         }
-        String contentType = file.getContentType() == null ? "application/octet-stream" : file.getContentType();
+        try (var signatureStream = file.getInputStream()) {
+            FileContentValidator.validate(extension, signatureStream.readNBytes(512));
+        } catch (IOException exception) {
+            throw new BusinessException("读取上传文件失败，请重新选择文件");
+        }
+        String contentType = CONTENT_TYPES.get(extension);
         String objectKey = TenantContext.tenantId() + "/" + UUID.randomUUID() + "/" + safeName;
         try (var stream = file.getInputStream()) {
             fileObjectStorage.put(objectKey, stream, file.getSize(), contentType);

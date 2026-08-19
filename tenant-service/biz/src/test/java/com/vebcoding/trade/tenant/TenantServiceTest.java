@@ -59,4 +59,31 @@ class TenantServiceTest {
         assertThat(service.auditLogs("", "")).extracting("action")
                 .contains("ARTICLE_CREATED", "CHANNEL_CONFIGURED");
     }
+
+    @Test
+    void ownerCannotChangeOrDisableOwnAccount() {
+        TenantContext.setTenantId("demo-tenant");
+        TenantContext.setRole("OWNER");
+        TenantContext.setUserId("demo-admin");
+
+        assertThatThrownBy(() -> service.updateMemberRole("demo-admin", "ADMIN"))
+                .isInstanceOf(com.vebcoding.trade.common.BusinessException.class)
+                .hasMessage("不能修改自己的角色");
+        assertThatThrownBy(() -> service.updateMemberStatus("demo-admin", "DISABLED"))
+                .isInstanceOf(com.vebcoding.trade.common.BusinessException.class)
+                .hasMessage("不能停用当前登录账号");
+    }
+
+    @Test
+    void inMemoryChannelConfigurationIsTenantScoped() {
+        TenantContext.setTenantId("tenant-a");
+        TenantContext.setRole("OWNER");
+        TenantContext.setUserId("owner-a");
+        service.saveChannel(new UpsertChannelConfigRequest("EMAIL", "A企业邮箱", "a@example.com", true));
+
+        TenantContext.setTenantId("tenant-b");
+        TenantContext.setUserId("owner-b");
+
+        assertThat(service.channels()).isEmpty();
+    }
 }

@@ -76,7 +76,7 @@ public class TenantService {
     public MemberView updateMemberRole(String id, String role) {
         RoleGuard.requireAny("OWNER");
         MemberView current = member(id);
-        if (current.username().equals(TenantContext.userId())) {
+        if (current.id().equals(TenantContext.userId())) {
             throw BusinessException.conflict("不能修改自己的角色");
         }
         MemberView updated = tenantMapper.updateMemberRole(TenantContext.tenantId(), id, normalizeRole(role));
@@ -88,7 +88,7 @@ public class TenantService {
     public MemberView updateMemberStatus(String id, String status) {
         RoleGuard.requireAny("OWNER", "ADMIN");
         MemberView current = member(id);
-        if (current.username().equals(TenantContext.userId())) {
+        if (current.id().equals(TenantContext.userId())) {
             throw BusinessException.conflict("不能停用当前登录账号");
         }
         String normalized = status == null ? "" : status.trim().toUpperCase(Locale.ROOT);

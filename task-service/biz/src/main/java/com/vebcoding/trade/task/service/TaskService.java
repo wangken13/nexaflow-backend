@@ -4,6 +4,7 @@ import com.vebcoding.trade.common.BusinessException;
 import com.vebcoding.trade.common.TenantContext;
 import com.vebcoding.trade.common.TextSanitizer;
 import com.vebcoding.trade.common.RoleGuard;
+import com.vebcoding.trade.common.JdbcValueSupport;
 import com.vebcoding.trade.task.api.CreateTaskRequest;
 import com.vebcoding.trade.task.api.DailyReport;
 import com.vebcoding.trade.task.api.TaskView;
@@ -39,8 +40,9 @@ public class TaskService {
         String title = TextSanitizer.required(request.title(), "任务标题");
         String priority = normalizePriority(request.priority());
         TaskView task = new TaskView("tsk-" + UUID.randomUUID(), TenantContext.tenantId(), title,
-                priority, "OPEN", TextSanitizer.optional(request.dueAt()),
-                TextSanitizer.optional(request.relatedType()).toUpperCase(), TextSanitizer.optional(request.relatedId()));
+                priority, "OPEN", normalizeDueAt(request.dueAt()),
+                TextSanitizer.optional(request.relatedType()).toUpperCase(java.util.Locale.ROOT),
+                TextSanitizer.optional(request.relatedId()));
         return taskMapper.save(task);
     }
 
@@ -65,7 +67,7 @@ public class TaskService {
     }
 
     private String normalizePriority(String priority) {
-        String normalized = TextSanitizer.optional(priority).toUpperCase();
+        String normalized = TextSanitizer.optional(priority).toUpperCase(java.util.Locale.ROOT);
         if (normalized.isBlank()) {
             return "NORMAL";
         }
@@ -73,5 +75,16 @@ public class TaskService {
             throw new BusinessException("任务优先级不合法");
         }
         return normalized;
+    }
+
+    private String normalizeDueAt(String dueAt) {
+        String normalized = TextSanitizer.optional(dueAt);
+        if (normalized.isBlank()) return "";
+        try {
+            JdbcValueSupport.isoToTimestamp(normalized);
+            return normalized;
+        } catch (RuntimeException exception) {
+            throw new BusinessException("提醒时间格式必须为 yyyy-MM-ddTHH:mm:ss");
+        }
     }
 }

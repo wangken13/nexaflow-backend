@@ -21,8 +21,11 @@ import reactor.core.publisher.Mono;
 @Component
 public class JwtGatewayFilter implements GlobalFilter, Ordered {
     private static final List<String> PUBLIC_PATHS = List.of(
-            "/api/auth/captcha", "/api/auth/login", "/api/auth/refresh", "/api/auth/register", "/api/auth/sms-codes", "/api/auth/sms-login",
-            "/api/auth/wechat/", "/api/inquiry/inbound/", "/api/tenant/billing/callback", "/actuator/health", "/readyz");
+            "/api/auth/captcha", "/api/auth/login", "/api/auth/refresh", "/api/auth/register",
+            "/api/auth/sms-codes", "/api/auth/sms-login", "/api/tenant/billing/callback",
+            "/actuator/health", "/readyz");
+    private static final List<String> PUBLIC_PREFIXES = List.of(
+            "/api/auth/wechat/", "/api/inquiry/inbound/", "/actuator/health/");
 
     @Value("${JWT_SECRET}")
     private String secret;
@@ -35,7 +38,7 @@ public class JwtGatewayFilter implements GlobalFilter, Ordered {
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
         String path = exchange.getRequest().getURI().getPath();
-        if (PUBLIC_PATHS.stream().anyMatch(path::startsWith)) {
+        if (isPublicPath(path)) {
             return chain.filter(withoutIdentityHeaders(exchange));
         }
         String token = exchange.getRequest().getHeaders().getFirst(HttpHeaders.AUTHORIZATION);
@@ -69,6 +72,10 @@ public class JwtGatewayFilter implements GlobalFilter, Ordered {
     @Override
     public int getOrder() {
         return -100;
+    }
+
+    private boolean isPublicPath(String path) {
+        return PUBLIC_PATHS.contains(path) || PUBLIC_PREFIXES.stream().anyMatch(path::startsWith);
     }
 
     private ServerWebExchange withoutIdentityHeaders(ServerWebExchange exchange) {

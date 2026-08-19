@@ -71,4 +71,13 @@ class TaskServiceTest {
         assertThat(task.relatedType()).isEqualTo("INQUIRY");
         assertThat(task.relatedId()).isEqualTo("inq-001");
     }
+
+    @Test
+    void createRejectsInvalidReminderTimeWithBusinessMessage() {
+        TaskService service = new TaskService(new InMemoryTaskMapper());
+
+        assertThatThrownBy(() -> service.create(new CreateTaskRequest("Follow inquiry", "HIGH", "tomorrow")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("提醒时间格式必须为 yyyy-MM-ddTHH:mm:ss");
+    }
 }

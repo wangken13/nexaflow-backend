@@ -25,5 +25,7 @@ public interface QuotationMapper {
 
     boolean deleteApprovalRule(String tenantId, String id);
 
-    String findCustomerTag(String tenantId, String customerId);
+    Optional<String> findCustomerTag(String tenantId, String customerId);
+
+    boolean productExists(String tenantId, String productId);
 }

@@ -10,4 +10,6 @@ public interface InquiryMapper {
     InquiryView save(InquiryView inquiry);
 
     Optional<InquiryView> findByTenantIdAndId(String tenantId, String id);
+
+    boolean customerExists(String tenantId, String customerId);
 }

@@ -78,14 +78,16 @@ public class QuotationService {
     public QuotationView create(CreateQuotationRequest request) {
         RoleGuard.requireAny("OWNER", "ADMIN", "SALES");
         String customerId = TextSanitizer.required(request.customerId(), "客户ID");
+        if (quotationMapper.findCustomerTag(TenantContext.tenantId(), customerId).isEmpty()) {
+            throw BusinessException.notFound("客户不存在或不属于当前企业");
+        }
         if (request.items() == null || request.items().isEmpty()) throw new BusinessException("报价单至少需要一个明细");
         List<QuotationItemView> items = request.items().stream().map(this::toItem).toList();
         BigDecimal freight = request.freight() == null ? BigDecimal.ZERO : request.freight();
         if (freight.signum() < 0) throw new BusinessException("运费不能小于0");
         String currency = normalize(request.currency(), "USD");
         String tradeTerm = normalize(request.tradeTerm(), "FOB");
-        String validUntil = request.validUntil() == null || request.validUntil().isBlank()
-                ? LocalDate.now().plusDays(14).toString() : request.validUntil();
+        String validUntil = normalizeValidUntil(request.validUntil());
         String id = "quo-" + UUID.randomUUID();
         String number = "Q-" + LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE) + "-" + id.substring(id.length() - 6).toUpperCase();
         BigDecimal total = items.stream().map(QuotationItemView::amount).reduce(BigDecimal.ZERO, BigDecimal::add).add(freight);
@@ -169,7 +171,8 @@ public class QuotationService {
     }
 
     private ApprovalDecision evaluateApproval(String customerId, BigDecimal totalAmount, String tradeTerm) {
-        String customerTag = quotationMapper.findCustomerTag(TenantContext.tenantId(), customerId);
+        String customerTag = quotationMapper.findCustomerTag(TenantContext.tenantId(), customerId)
+                .orElseThrow(() -> BusinessException.notFound("客户不存在或不属于当前企业"));
         List<String> reasons = quotationMapper.findApprovalRules(TenantContext.tenantId()).stream()
                 .filter(ApprovalRuleView::enabled)
                 .filter(rule -> matches(rule, totalAmount, customerTag, tradeTerm))
@@ -191,14 +194,28 @@ public class QuotationService {
 
     private QuotationItemView toItem(QuotationItemRequest request) {
         String name = TextSanitizer.required(request.productName(), "产品名称");
+        String productId = TextSanitizer.optional(request.productId());
+        if (!productId.isBlank() && !quotationMapper.productExists(TenantContext.tenantId(), productId)) {
+            throw BusinessException.notFound("报价产品不存在、已停用或不属于当前企业");
+        }
         if (request.quantity() <= 0) throw new BusinessException("报价数量必须大于0");
         if (request.unitPrice() == null || request.unitPrice().signum() < 0) throw new BusinessException("单价不能小于0");
         BigDecimal amount = request.unitPrice().multiply(BigDecimal.valueOf(request.quantity()));
-        return new QuotationItemView("qit-" + UUID.randomUUID(), TextSanitizer.optional(request.productId()), name,
+        return new QuotationItemView("qit-" + UUID.randomUUID(), productId, name,
                 TextSanitizer.optional(request.specification()), request.quantity(), request.unitPrice(), amount);
     }
     private String normalize(String value, String fallback) {
-        String normalized = TextSanitizer.optional(value).toUpperCase(); return normalized.isBlank() ? fallback : normalized;
+        String normalized = TextSanitizer.optional(value).toUpperCase(Locale.ROOT);
+        return normalized.isBlank() ? fallback : normalized;
+    }
+
+    private String normalizeValidUntil(String value) {
+        if (value == null || value.isBlank()) return LocalDate.now().plusDays(14).toString();
+        try {
+            return LocalDate.parse(value.trim()).toString();
+        } catch (java.time.format.DateTimeParseException exception) {
+            throw new BusinessException("报价有效期格式必须为 yyyy-MM-dd");
+        }
     }
 
     private record ApprovalDecision(boolean required, String reason) {

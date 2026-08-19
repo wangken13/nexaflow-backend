@@ -138,10 +138,18 @@ public class JdbcQuotationMapper implements QuotationMapper {
     }
 
     @Override
-    public String findCustomerTag(String tenantId, String customerId) {
+    public Optional<String> findCustomerTag(String tenantId, String customerId) {
         List<String> tags = jdbcTemplate.query("SELECT tag FROM customers WHERE tenant_id=? AND id=?",
                 (rs, rowNum) -> stringOrEmpty(rs, "tag"), tenantId, customerId);
-        return tags.isEmpty() ? "" : tags.getFirst();
+        return tags.stream().findFirst();
+    }
+
+    @Override
+    public boolean productExists(String tenantId, String productId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM products WHERE tenant_id=? AND id=? AND active_flag=1",
+                Integer.class, tenantId, productId);
+        return count != null && count == 1;
     }
 
     private QuotationView mapHeader(java.sql.ResultSet rs) throws java.sql.SQLException {

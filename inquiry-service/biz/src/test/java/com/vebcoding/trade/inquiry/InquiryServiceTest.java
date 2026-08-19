@@ -61,4 +61,14 @@ class InquiryServiceTest {
         assertThat(inquiry.status()).isEqualTo("PENDING_AI");
         assertThat(published.get()).isNull();
     }
+
+    @Test
+    void createRejectsCustomerOutsideCurrentTenant() {
+        InquiryService service = new InquiryService(new InMemoryInquiryMapper(), inquiry -> { });
+
+        assertThatThrownBy(() -> service.create(new CreateInquiryRequest(
+                "cus-other", "Need quote", "500 pcs")))
+                .isInstanceOf(BusinessException.class)
+                .hasMessage("客户不存在或不属于当前企业");
+    }
 }

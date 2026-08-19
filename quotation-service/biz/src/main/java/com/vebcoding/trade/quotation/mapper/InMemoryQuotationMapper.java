@@ -34,5 +34,10 @@ public class InMemoryQuotationMapper implements QuotationMapper {
     @Override public Optional<ApprovalRuleView> findApprovalRule(String tenantId, String id) { return rules.stream().filter(item -> tenantId.equals(item.tenantId()) && id.equals(item.id())).findFirst(); }
     @Override public ApprovalRuleView saveApprovalRule(ApprovalRuleView rule) { rules.removeIf(item -> item.id().equals(rule.id())); rules.add(rule); return rule; }
     @Override public boolean deleteApprovalRule(String tenantId, String id) { return rules.removeIf(item -> tenantId.equals(item.tenantId()) && id.equals(item.id())); }
-    @Override public String findCustomerTag(String tenantId, String customerId) { return ""; }
+    @Override public Optional<String> findCustomerTag(String tenantId, String customerId) {
+        return "cus-001".equals(customerId) ? Optional.of("") : Optional.empty();
+    }
+    @Override public boolean productExists(String tenantId, String productId) {
+        return "prd-1".equals(productId) || "prd-2".equals(productId);
+    }
 }

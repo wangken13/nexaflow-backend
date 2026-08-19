@@ -27,4 +27,9 @@ public class InMemoryInquiryMapper implements InquiryMapper {
                 .filter(item -> item.id().equals(id))
                 .findFirst();
     }
+
+    @Override
+    public boolean customerExists(String tenantId, String customerId) {
+        return "cus-001".equals(customerId) || "cus-1".equals(customerId);
+    }
 }

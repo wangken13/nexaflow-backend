@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.vebcoding.trade.common.AccessDeniedException;
+import com.vebcoding.trade.common.BusinessException;
 import com.vebcoding.trade.common.TenantContext;
 import com.vebcoding.trade.file.mapper.InMemoryFileMetadataMapper;
 import com.vebcoding.trade.file.service.FileService;
@@ -33,13 +34,24 @@ class FileServiceTest {
 
     @Test
     void uploadStoresTenantScopedObjectMetadata() {
-        var file = new MockMultipartFile("file", "quote.pdf", "application/pdf", new byte[] {1, 2, 3});
+        var file = new MockMultipartFile("file", "quote.pdf", "text/html", "%PDF-1.7".getBytes());
 
         var uploaded = service.upload(file);
 
         assertThat(uploaded.objectKey()).startsWith("tenant-file-test/");
         assertThat(uploaded.fileName()).isEqualTo("quote.pdf");
-        assertThat(uploaded.size()).isEqualTo(3);
+        assertThat(uploaded.size()).isEqualTo(8);
+        assertThat(uploaded.contentType()).isEqualTo("application/pdf");
+    }
+
+    @Test
+    void rejectsFileWhoseContentDoesNotMatchExtension() {
+        var file = new MockMultipartFile("file", "contract.pdf", "application/pdf",
+                "<script>alert(1)</script>".getBytes());
+
+        assertThatThrownBy(() -> service.upload(file))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("文件内容与扩展名不匹配");
     }
 
     @Test
@@ -57,5 +69,16 @@ class FileServiceTest {
         assertThat(service.policy())
                 .extracting("bucket", "endpoint")
                 .containsExactly("nexaflow-files", "http://minio.test:9000");
+    }
+
+    @Test
+    void uploadRejectsFileAboveServiceLimit() {
+        org.springframework.web.multipart.MultipartFile file = org.mockito.Mockito.mock(org.springframework.web.multipart.MultipartFile.class);
+        org.mockito.Mockito.when(file.isEmpty()).thenReturn(false);
+        org.mockito.Mockito.when(file.getSize()).thenReturn(20L * 1024 * 1024 + 1);
+
+        assertThatThrownBy(() -> service.upload(file))
+                .isInstanceOf(com.vebcoding.trade.common.BusinessException.class)
+                .hasMessage("上传文件不能超过20MB");
     }
 }

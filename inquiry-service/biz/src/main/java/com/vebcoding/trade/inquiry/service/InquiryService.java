@@ -65,8 +65,12 @@ public class InquiryService {
 
     private InquiryView createPending(String tenantId, String customerId, String subject, String content,
                                       String sourceChannel, String externalId, String ownerId) {
+        String normalizedCustomerId = TextSanitizer.required(customerId, "客户ID");
+        if (!inquiryMapper.customerExists(tenantId, normalizedCustomerId)) {
+            throw BusinessException.notFound("客户不存在或不属于当前企业");
+        }
         InquiryView inquiry = new InquiryView("inq-" + UUID.randomUUID(), tenantId,
-                TextSanitizer.required(customerId, "客户ID"), TextSanitizer.required(subject, "询盘主题"),
+                normalizedCustomerId, TextSanitizer.required(subject, "询盘主题"),
                 TextSanitizer.required(content, "询盘内容"), "PENDING_AI", sourceChannel, externalId, ownerId,
                 Instant.now().plusSeconds(4 * 3600).toString(), Instant.now().toString());
         return inquiryMapper.save(inquiry);

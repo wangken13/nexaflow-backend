@@ -2,9 +2,12 @@ package com.vebcoding.trade.inquiry.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.vebcoding.trade.inquiry.api.InquiryCreatedEvent;
+import java.util.concurrent.TimeUnit;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.amqp.rabbit.connection.CorrelationData;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -14,6 +17,9 @@ public class OutboxDispatcher {
     private final OutboxStore outboxStore;
     private final RabbitTemplate rabbitTemplate;
     private final ObjectMapper objectMapper;
+
+    @Value("${app.outbox.confirm-timeout-seconds:5}")
+    private long confirmTimeoutSeconds = 5;
 
     public OutboxDispatcher(OutboxStore outboxStore, RabbitTemplate rabbitTemplate, ObjectMapper objectMapper) {
         this.outboxStore = outboxStore;
@@ -34,7 +40,7 @@ public class OutboxDispatcher {
         }
         try {
             InquiryCreatedEvent payload = objectMapper.readValue(event.payload(), InquiryCreatedEvent.class);
-            rabbitTemplate.convertAndSend("trade.events", "inquiry.created", payload);
+            publishConfirmed(event.id(), payload);
             outboxStore.markPublished(event.id());
             log.info("outbox.event.published eventId={}", event.id());
         } catch (Exception exception) {
@@ -45,5 +51,17 @@ public class OutboxDispatcher {
 
     private boolean claim(String eventId) {
         return outboxStore.claim(eventId);
+    }
+
+    private void publishConfirmed(String eventId, InquiryCreatedEvent payload) throws Exception {
+        CorrelationData correlation = new CorrelationData(eventId);
+        rabbitTemplate.convertAndSend("trade.events", "inquiry.created", payload, correlation);
+        CorrelationData.Confirm confirm = correlation.getFuture().get(confirmTimeoutSeconds, TimeUnit.SECONDS);
+        if (!confirm.isAck()) {
+            throw new IllegalStateException("RabbitMQ rejected message: " + confirm.getReason());
+        }
+        if (correlation.getReturned() != null) {
+            throw new IllegalStateException("RabbitMQ returned unroutable message");
+        }
     }
 }
