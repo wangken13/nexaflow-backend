@@ -41,14 +41,14 @@ class BillingServiceTest {
     @Test
     void createsSignedCheckoutOrderFromCatalogPrice() {
         when(store.findPlan("PRO")).thenReturn(Optional.of(new PlanView("PRO", "专业版", 20, 10000,
-                3000, BigDecimal.valueOf(899))));
+                3000, BigDecimal.valueOf(9.9))));
         when(store.saveOrder(anyString(), anyString(), any())).thenAnswer(invocation -> invocation.getArgument(2));
         BillingService service = new BillingService(store, order -> "https://pay.example/" + order.id(), verifier,
                 new ObjectMapper());
 
         SubscriptionOrderView order = service.createOrder(new CreateSubscriptionOrderRequest("pro", 12));
 
-        assertThat(order.amount()).isEqualByComparingTo("10788");
+        assertThat(order.amount()).isEqualByComparingTo("118.80");
         assertThat(order.status()).isEqualTo("PENDING_PAYMENT");
         assertThat(order.checkoutUrl()).startsWith("https://pay.example/");
     }
@@ -78,7 +78,7 @@ class BillingServiceTest {
 
     private SubscriptionOrderView order(String status) {
         Instant now = Instant.now();
-        return new SubscriptionOrderView("sub-1", "PRO", "专业版", 12, BigDecimal.valueOf(10788), status,
+        return new SubscriptionOrderView("sub-1", "PRO", "专业版", 12, BigDecimal.valueOf(118.8), status,
                 "", status.equals("PAID") ? "txn-1" : "", now.toString(),
                 status.equals("PAID") ? now.toString() : "", now.plusSeconds(1800).toString());
     }

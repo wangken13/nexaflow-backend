@@ -125,6 +125,6 @@ public class InMemoryTenantMapper implements TenantMapper {
     @Override public SubscriptionView findSubscription(String tenantId) {
         int memberCount = Math.toIntExact(
                 members.values().stream().filter(member -> tenantId.equals(member.tenantId())).count());
-        return new SubscriptionView("PRO", "专业版", BigDecimal.valueOf(899), memberCount, 20, 0, 10000, 128, 3000);
+        return new SubscriptionView("PRO", "专业版", BigDecimal.valueOf(9.9), memberCount, 20, 0, 10000, 128, 3000);
     }
 }
