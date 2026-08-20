@@ -45,4 +45,22 @@ class GatewayAbuseProtectionFilterTest {
 
         assertThat(accepted.get()).isEqualTo(20);
     }
+
+    @Test
+    void separatesDefaultApiBucketsByRoute() {
+        var beans = new StaticListableBeanFactory();
+        var filter = new GatewayAbuseProtectionFilter(beans.getBeanProvider(ReactiveStringRedisTemplate.class));
+
+        for (int index = 0; index < 300; index++) {
+            var exchange = MockServerWebExchange.from(MockServerHttpRequest.get("/api/customer")
+                    .header("X-Real-IP", "198.51.100.10").build());
+            filter.filter(exchange, ignored -> reactor.core.publisher.Mono.empty()).block();
+        }
+
+        var differentRoute = MockServerWebExchange.from(MockServerHttpRequest.get("/api/tenant/profile")
+                .header("X-Real-IP", "198.51.100.10").build());
+        filter.filter(differentRoute, ignored -> reactor.core.publisher.Mono.empty()).block();
+
+        assertThat(differentRoute.getResponse().getStatusCode()).isNotEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
 }

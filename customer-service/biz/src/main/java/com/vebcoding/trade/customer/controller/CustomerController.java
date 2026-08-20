@@ -44,7 +44,7 @@ public class CustomerController {
     }
 
     @PostMapping
-    public ApiResponse<CustomerView> create(@RequestBody CreateCustomerRequest request) {
+    public ApiResponse<CustomerView> create(@Valid @RequestBody CreateCustomerRequest request) {
         return ApiResponse.ok(customerService.create(request));
     }
 
@@ -54,7 +54,8 @@ public class CustomerController {
     }
 
     @PutMapping("/{id}")
-    public ApiResponse<CustomerView> update(@PathVariable String id, @RequestBody CreateCustomerRequest request) {
+    public ApiResponse<CustomerView> update(@PathVariable String id,
+                                             @Valid @RequestBody CreateCustomerRequest request) {
         return ApiResponse.ok(customerService.update(id, request));
     }
 
@@ -71,12 +72,14 @@ public class CustomerController {
     }
 
     @PostMapping("/{id}/contacts")
-    public ApiResponse<ContactView> addContact(@PathVariable String id, @RequestBody CreateContactRequest request) {
+    public ApiResponse<ContactView> addContact(@PathVariable String id,
+                                                @Valid @RequestBody CreateContactRequest request) {
         return ApiResponse.ok(customerService.addContact(id, request));
     }
 
     @PostMapping("/{id}/followups")
-    public ApiResponse<FollowupView> addFollowup(@PathVariable String id, @RequestBody CreateFollowupRequest request) {
+    public ApiResponse<FollowupView> addFollowup(@PathVariable String id,
+                                                  @Valid @RequestBody CreateFollowupRequest request) {
         return ApiResponse.ok(customerService.addFollowup(id, request));
     }
 

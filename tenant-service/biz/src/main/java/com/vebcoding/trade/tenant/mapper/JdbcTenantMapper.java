@@ -73,7 +73,7 @@ public class JdbcTenantMapper implements TenantMapper {
                                    role_code, data_scope, status, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, member.id(), member.tenantId(), member.username(), passwordHash, member.displayName(),
-                emptyToNull(member.departmentId()), member.role(), member.dataScope(), member.status(),
+                emptyToNull(member.email()), emptyToNull(member.departmentId()), member.role(), member.dataScope(), member.status(),
                 Timestamp.from(java.time.Instant.parse(member.createdAt())));
         return member;
     }

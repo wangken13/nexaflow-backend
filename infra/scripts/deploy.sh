@@ -134,8 +134,16 @@ load_demo_data() {
     return 0
   fi
   echo "[demo] load business demo data"
-  compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" trade_ai' \
+  # Use MySQL's administrative connection reserve so seeding can recover a
+  # deployment even when application pools temporarily reach their limit.
+  compose exec -T mysql sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot trade_ai' \
     < "$infra_dir/mysql/demo/001_business_demo_data.sql"
+}
+
+stop_previous_application_containers() {
+  # A rolling restart is not safe for this small single-host deployment: old
+  # pools would overlap with new pools and exhaust MySQL connections.
+  compose stop gateway-service $business_services frontend >/dev/null 2>&1 || true
 }
 
 package_backend() {
@@ -196,6 +204,7 @@ validate_nacos_credentials
 compose config --quiet
 
 echo "[2/9] Start infrastructure"
+stop_previous_application_containers
 compose up -d $infrastructure_services
 for service in $infrastructure_services; do
   wait_healthy "$service" 120

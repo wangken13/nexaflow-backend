@@ -24,6 +24,30 @@ VALUES
   ('demo-user-04', @tenant_id, 'demo_operator', @password_hash, '方予', 'fangyu@nexaflow.demo', '+8613800001004', 'OPERATOR', 'ACTIVE'),
   ('demo-user-05', @tenant_id, 'demo_viewer', @password_hash, '宋宁', 'songning@nexaflow.demo', '+8613800001005', 'VIEWER', 'ACTIVE');
 
+INSERT IGNORE INTO departments (id, tenant_id, name, parent_id, status)
+VALUES
+  ('demo-department-sales', @tenant_id, '销售运营部', NULL, 'ACTIVE'),
+  ('demo-department-delivery', @tenant_id, '交付协同部', NULL, 'ACTIVE');
+
+UPDATE users SET department_id = 'demo-department-sales', data_scope = 'ALL'
+WHERE tenant_id = @tenant_id AND username IN ('demo_owner', 'demo_sales_01', 'demo_sales_02');
+UPDATE users SET department_id = 'demo-department-delivery', data_scope = 'DEPARTMENT'
+WHERE tenant_id = @tenant_id AND username = 'demo_operator';
+UPDATE users SET department_id = 'demo-department-sales', data_scope = 'SELF'
+WHERE tenant_id = @tenant_id AND username = 'demo_viewer';
+
+INSERT IGNORE INTO knowledge_articles
+  (id, tenant_id, title, category, content, active_flag, updated_by, created_at, updated_at)
+VALUES
+  ('demo-knowledge-01', @tenant_id, '产品报价边界', 'PRICING', '正式报价前必须确认数量、目的港、包装和交期，未确认的信息不得写入承诺。', 1, 'demo-user-01', '2026-08-01 09:00:00', '2026-08-01 09:00:00'),
+  ('demo-knowledge-02', @tenant_id, '交付说明', 'DELIVERY', '常规产品交期以排产确认结果为准，样品和大货应分别确认交付日期。', 1, 'demo-user-01', '2026-08-02 09:00:00', '2026-08-02 09:00:00');
+
+INSERT IGNORE INTO quotation_approval_rules
+  (id, tenant_id, rule_name, rule_type, threshold_amount, condition_value, enabled_flag)
+VALUES
+  ('demo-approval-01', @tenant_id, '报价金额超过一万美元', 'AMOUNT_THRESHOLD', 10000.00, '', 1),
+  ('demo-approval-02', @tenant_id, '重点客户报价复核', 'VIP_CUSTOMER', NULL, '重点客户', 1);
+
 INSERT IGNORE INTO customers (id, tenant_id, name, country, tag, created_at) VALUES
   ('demo-customer-01', @tenant_id, 'Aster Retail Group', 'United States', '重点客户', '2026-07-01 09:00:00'),
   ('demo-customer-02', @tenant_id, 'Nordlicht Handel GmbH', 'Germany', '潜力客户', '2026-07-03 10:00:00'),

@@ -40,7 +40,9 @@ public class AuthController {
     private final LoginCaptchaService loginCaptchaService;
     private final AbuseProtectionService abuseProtectionService;
 
-    @Value("${AUTH_COOKIE_SECURE:true}")
+    // Local IDEA/HTTP runs must be able to persist the cookie. Production
+    // compose explicitly sets this to true behind HTTPS.
+    @Value("${AUTH_COOKIE_SECURE:false}")
     private boolean secureCookie;
 
     /**

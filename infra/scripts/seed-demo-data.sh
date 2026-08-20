@@ -10,6 +10,6 @@ docker compose version >/dev/null 2>&1 || { echo "Docker Compose v2 is required.
 
 echo "This imports only the NexaFlow demo tenant data into trade_ai."
 docker compose --env-file "$env_file" -f "$compose_file" exec -T mysql \
-  sh -c 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -u"$MYSQL_USER" trade_ai' \
+  sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot trade_ai' \
   < "$infra_dir/mysql/demo/001_business_demo_data.sql"
 echo "Demo data loaded. Login: demo_owner / admin123"

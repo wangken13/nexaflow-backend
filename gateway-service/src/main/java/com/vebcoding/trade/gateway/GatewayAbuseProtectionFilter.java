@@ -42,7 +42,10 @@ public class GatewayAbuseProtectionFilter implements GlobalFilter, Ordered {
             return chain.filter(exchange);
         }
         Policy policy = policy(path);
-        String key = policy.name() + ":" + clientIp(exchange.getRequest());
+        // Keep unrelated dashboard calls from consuming one shared bucket.
+        // This is especially important when Nginx fronts every browser with
+        // the same container-side source address.
+        String key = policy.name() + ":" + path + ":" + clientIp(exchange.getRequest());
         return allowDistributed(key, policy)
                 .flatMap(allowed -> allowed ? chain.filter(exchange) : reject(exchange));
     }
@@ -81,8 +84,19 @@ public class GatewayAbuseProtectionFilter implements GlobalFilter, Ordered {
     }
 
     private String clientIp(ServerHttpRequest request) {
+        String realIp = firstHeader(request, "X-Real-IP");
+        if (!realIp.isBlank()) return realIp;
+        String forwarded = firstHeader(request, "X-Forwarded-For");
+        if (!forwarded.isBlank()) return forwarded;
         return request.getRemoteAddress() == null || request.getRemoteAddress().getAddress() == null
                 ? "unknown" : request.getRemoteAddress().getAddress().getHostAddress();
+    }
+
+    private String firstHeader(ServerHttpRequest request, String name) {
+        String value = request.getHeaders().getFirst(name);
+        if (value == null) return "";
+        String first = value.split(",", 2)[0].trim();
+        return first.length() <= 64 && !first.contains("\r") && !first.contains("\n") ? first : "";
     }
 
     private Mono<Void> reject(ServerWebExchange exchange) {
